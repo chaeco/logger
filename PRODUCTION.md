@@ -32,7 +32,7 @@ import { Logger } from '@chaeco/logger'
 const logger = new Logger({
   level: 'info',
   name: 'production-app',
-  
+
   // 文件输出配置
   file: {
     enabled: true,
@@ -43,14 +43,14 @@ const logger = new Logger({
     compress: true,       // 启用压缩
     writeMode: 'async',   // 异步写入（性能更好）
   },
-  
+
   // 控制台输出
   console: {
     enabled: false,       // 生产环境禁用控制台（或仅在开发模式启用）
     colors: false,
     timestamp: true,
   },
-  
+
   // 日志采样
   sampling: {
     enabled: true,
@@ -62,7 +62,7 @@ const logger = new Logger({
       silent: 0,
     },
   },
-  
+
   // 限流配置
   rateLimit: {
     enabled: true,
@@ -70,7 +70,7 @@ const logger = new Logger({
     maxLogsPerWindow: 5000,
     warnOnLimitExceeded: true,
   },
-  
+
   // 日志过滤
   filter: {
     enabled: true,
@@ -81,7 +81,7 @@ const logger = new Logger({
       (entry) => !entry.message.includes('password'),
     ],
   },
-  
+
   // 错误处理
   errorHandling: {
     silent: true,         // 静默错误，不影响主应用
@@ -111,7 +111,7 @@ export { logger }
 const logger = new Logger({
   level: process.env.LOG_LEVEL || 'info',
   name: process.env.SERVICE_NAME || 'microservice',
-  
+
   file: {
     enabled: true,
     path: './logs',
@@ -120,19 +120,19 @@ const logger = new Logger({
     maxAge: 7,            // 微服务日志保留7天
     compress: true,
   },
-  
+
   // JSON 格式输出（便于日志收集系统解析）
   format: {
     json: true,
     jsonIndent: 0,        // 不缩进，节省空间
     timestampFormat: 'YYYY-MM-DD HH:mm:ss.SSS',
   },
-  
+
   sampling: {
     enabled: true,
     rate: 0.1,            // 整体采样率 10%
   },
-  
+
   rateLimit: {
     enabled: true,
     windowSize: 5000,
@@ -147,25 +147,25 @@ const logger = new Logger({
 const logger = new Logger({
   level: 'info',
   name: process.env.POD_NAME || 'container',
-  
+
   // 容器环境推荐输出到控制台，由容器运行时收集
   console: {
     enabled: true,
     colors: false,        // 禁用颜色（避免干扰日志收集）
     timestamp: true,
   },
-  
+
   // 禁用文件输出（使用容器日志）
   file: {
     enabled: false,
   },
-  
+
   // JSON 格式便于结构化日志解析
   format: {
     json: true,
     jsonIndent: 0,
   },
-  
+
   sampling: {
     enabled: true,
     rate: 0.2,
@@ -179,27 +179,27 @@ const logger = new Logger({
 const logger = new Logger({
   level: 'warn',          // 生产环境只记录警告和错误
   name: 'web-app',
-  
+
   console: {
     enabled: true,
     colors: true,
     timestamp: true,
   },
-  
+
   // 使用 IndexedDB 存储
   file: {
     enabled: true,
     maxFiles: 100,
     maxAge: 7,            // 浏览器环境保留时间较短
   },
-  
+
   // 严格限流（避免影响用户体验）
   rateLimit: {
     enabled: true,
     windowSize: 10000,
     maxLogsPerWindow: 200,
   },
-  
+
   // 过滤敏感信息
   filter: {
     enabled: true,
@@ -264,17 +264,17 @@ file: {
 // 定期检查性能指标
 setInterval(() => {
   const metrics = logger.getMetrics()
-  
+
   if (metrics.fileWriteErrors > 10) {
     // 告警：文件写入错误过多
     sendAlert('Logger file write errors', metrics)
   }
-  
+
   if (metrics.droppedLogs > 1000) {
     // 告警：大量日志被限流丢弃
     sendAlert('High log drop rate', metrics)
   }
-  
+
   // 重置指标
   logger.resetMetrics()
 }, 60000) // 每分钟检查一次
@@ -301,7 +301,7 @@ logger.on('rateLimitExceeded', (event) => {
 ## 📊 日志级别使用指南
 
 | 级别 | 使用场景 | 生产环境 | 开发环境 |
-|------|----------|----------|----------|
+| ------ | ---------- | ---------- | ---------- |
 | `debug` | 详细调试信息 | 采样 1% | 100% |
 | `info` | 一般操作信息 | 采样 10% | 100% |
 | `warn` | 潜在问题警告 | 100% | 100% |

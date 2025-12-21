@@ -1,4 +1,4 @@
-import { LogLevel, LoggerOptions, LogEntry, LoggerEventType, LoggerEventHandler, LoggerEvent, SamplingOptions, RateLimitOptions, FilterOptions, PerformanceMetrics, LoggerFilter, FormatOptions, ErrorHandlingOptions } from './types'
+import { LogLevel, LoggerOptions, LogEntry, LoggerEventType, LoggerEventHandler, LoggerEvent, LogData, SamplingOptions, RateLimitOptions, FilterOptions, PerformanceMetrics, FormatOptions, ErrorHandlingOptions } from './types'
 import { ColorUtils } from './color-utils'
 import { FileManager } from './file-manager'
 import { isNodeEnvironment, isBrowserEnvironment } from './environment'
@@ -221,7 +221,7 @@ export class Logger {
    * 发出事件
    * @internal
    */
-  private emitEvent(type: LoggerEventType, message: string, error?: Error, data?: any): void {
+  private emitEvent(type: LoggerEventType, message: string, error?: Error, data?: LogData): void {
     const handlers = this.eventHandlers.get(type)
     if (!handlers || handlers.length === 0) return
 
@@ -250,7 +250,8 @@ export class Logger {
   private shouldSample(level: LogLevel): boolean {
     if (!this.sampling.enabled) return true
 
-    const rate = this.sampling.rateByLevel[level] ?? 1
+    // 先尝试使用该级别的采样率，如果没设置则使用全局rate
+    const rate = this.sampling.rateByLevel[level] ?? this.sampling.rate
     return Math.random() < rate
   }
 
@@ -415,7 +416,7 @@ export class Logger {
 
     // JSON 格式输出
     if (this.format.json) {
-      const jsonEntry: any = {
+      const jsonEntry: Record<string, unknown> = {
         timestamp: entry.timestamp,
         level: entry.level,
         message: entry.message,
@@ -494,7 +495,7 @@ export class Logger {
     return parts.join(' ')
   }
 
-  private createLogEntry(level: LogLevel, message: string, data?: any): LogEntry {
+  private createLogEntry(level: LogLevel, message: string, data?: LogData): LogEntry {
     const callerInfo = this.getCallerInfo()
 
     const entry: LogEntry = {
@@ -549,7 +550,7 @@ export class Logger {
    * 处理写入错误
    * @private
    */
-  private handleWriteError(error: any, message: string, entry?: LogEntry): void {
+  private handleWriteError(error: Error | unknown, message: string, entry?: LogEntry): void {
     this.metrics.fileWriteErrors++
 
     const err = error instanceof Error ? error : new Error(String(error))
@@ -622,13 +623,17 @@ export class Logger {
       this.processingTimes.reduce((a, b) => a + b, 0) / this.processingTimes.length
   }
 
-  private log(level: LogLevel, message: string, data?: any): void {
+  private log(level: LogLevel, message: string, data?: LogData): void {
     const startTime = performance.now()
     
     if (!this.shouldLog(level)) return
     
+    // 记录总日志数（包括被采样和限流的）
+    this.metrics.totalLogs++
+    
     // 采样检查
     if (!this.shouldSample(level)) {
+      this.metrics.sampledLogs++
       this.metrics.droppedLogs++
       return
     }
@@ -647,10 +652,6 @@ export class Logger {
       return
     }
 
-    // 记录指标
-    this.metrics.totalLogs++
-    this.metrics.sampledLogs++
-
     this.writeToConsole(entry)
     this.writeToFile(entry)
     
@@ -663,14 +664,14 @@ export class Logger {
   /**
    * 记录 DEBUG 级别日志
    * @param message - 日志消息
-   * Copilot: @param data - 附加数据（可选）
+   * @param data - 附加数据（可选）
    *
    * @example
    * ```typescript
    * logger.debug('调试信息', { userId: 123 })
    * ```
    */
-  debug(message: string, data?: any): void {
+  debug(message: string, data?: LogData): void {
     this.log('debug', message, data)
   }
 
@@ -684,7 +685,7 @@ export class Logger {
    * logger.info('用户登录成功', { username: 'john' })
    * ```
    */
-  info(message: string, data?: any): void {
+  info(message: string, data?: LogData): void {
     this.log('info', message, data)
   }
 
@@ -698,7 +699,7 @@ export class Logger {
    * logger.warn('数据库连接慢', { latency: 1000 })
    * ```
    */
-  warn(message: string, data?: any): void {
+  warn(message: string, data?: LogData): void {
     this.log('warn', message, data)
   }
 
@@ -712,7 +713,7 @@ export class Logger {
    * logger.error('数据库连接失败', { error: err.message })
    * ```
    */
-  error(message: string, data?: any): void {
+  error(message: string, data?: LogData): void {
     this.log('error', message, data)
   }
 
@@ -744,12 +745,14 @@ export class Logger {
     }
 
     if (this.fileManager) {
+      // FileManager 的 options 是私有的，但我们需要访问以传递给子 Logger
+      const fm = this.fileManager as unknown as { options: { path: string; maxSize: string; maxFiles: number; filename: string } }
       childOptions.file = {
         enabled: true,
-        path: (this.fileManager as any).options.path,
-        maxSize: (this.fileManager as any).options.maxSize,
-        maxFiles: (this.fileManager as any).options.maxFiles,
-        filename: (this.fileManager as any).options.filename,
+        path: fm.options.path,
+        maxSize: fm.options.maxSize,
+        maxFiles: fm.options.maxFiles,
+        filename: fm.options.filename,
       }
     }
 
@@ -868,6 +871,16 @@ export class Logger {
     }
     if (options.rate !== undefined) {
       this.sampling.rate = options.rate
+      // 如果设置了全局rate但没有设置特定级别的rate，清空rateByLevel以使用全局rate
+      if (!options.rateByLevel) {
+        this.sampling.rateByLevel = {
+          debug: options.rate,
+          info: options.rate,
+          warn: options.rate,
+          error: options.rate,
+          silent: options.rate,
+        }
+      }
     }
     if (options.rateByLevel) {
       this.sampling.rateByLevel = {
@@ -1218,14 +1231,15 @@ export class Logger {
     limit?: number
     offset?: number
     date?: string
-  }): Promise<any[]> {
+  }): Promise<Record<string, unknown>[]> {
     if (!this.fileManager) {
       console.warn('FileManager is not initialized')
       return []
     }
 
     try {
-      return await this.fileManager.queryLogs(options)
+      const logs = await this.fileManager.queryLogs(options)
+      return logs
     } catch (error) {
       console.error('Failed to query stored logs:', error)
       return []
@@ -1254,6 +1268,47 @@ export class Logger {
       await this.fileManager.clearLogs()
     } catch (error) {
       console.error('Failed to clear stored logs:', error)
+    }
+  }
+
+  /**
+   * 关闭 Logger 并刷新队列
+   *
+   * @remarks
+   * 调用此方法来清理资源、刷新异步写入队列并关闭文件管理器。
+   * 在应用程序退出前调用此方法以确保所有日志都被写入。
+   *
+   * @example
+   * ```typescript
+   * // 程序退出前关闭 logger
+   * process.on('SIGINT', async () => {
+   *   await logger.close()
+   *   process.exit(0)
+   * })
+   * ```
+   */
+  async close(): Promise<void> {
+    // 清除刷新定时器
+    if (this.fileManager && 'closeFlushTimer' in this.fileManager) {
+      const fm = this.fileManager as unknown as { closeFlushTimer?: NodeJS.Timeout }
+      if (fm.closeFlushTimer) {
+        clearTimeout(fm.closeFlushTimer)
+      }
+    }
+
+    // 关闭文件管理器
+    if (this.fileManager && 'close' in this.fileManager) {
+      const fm = this.fileManager as unknown as { close: () => void | Promise<void> }
+      if (typeof fm.close === 'function') {
+        try {
+          const result = fm.close()
+          if (result instanceof Promise) {
+            await result
+          }
+        } catch (error) {
+          console.error('Error closing FileManager:', error)
+        }
+      }
     }
   }
 }

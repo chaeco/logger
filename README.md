@@ -77,12 +77,12 @@ await logger.clearStoredLogs()
 
 ## 日志级别
 
-| 级别     | 说明         |
+| 级别 | 说明 |
 | -------- | ------------ |
-| `debug`  | 调试信息     |
-| `info`   | 一般信息     |
-| `warn`   | 警告信息     |
-| `error`  | 错误信息     |
+| `debug` | 调试信息 |
+| `info` | 一般信息 |
+| `warn` | 警告信息 |
+| `error` | 错误信息 |
 | `silent` | 禁用所有日志 |
 
 ## 高自动清理和压缩
@@ -116,13 +116,14 @@ const logger = new Logger({
 ```
 
 **清理和压缩说明：**
+
 - `maxAge`: 日志文件的最大保留天数，默认 30 天
 - `compress`: 是否压缩超过 1 天的日志文件，默认 false
 - 压缩使用 gzip 格式，文件扩展名变为 `.log.gz`
 - 清理和压缩会在日志轮转时自动执行
 - 支持两种清理策略：按数量（maxFiles）和按时间（maxAge）
 
-### 级功能
+## 高级功能
 
 ### 日志采样
 
@@ -234,11 +235,11 @@ logger.clearStoredLogs(): Promise<void>
 ### 环境检测
 
 ```typescript
-import { 
-  isNodeEnvironment, 
+import {
+  isNodeEnvironment,
   isBrowserEnvironment,
   currentEnvironment,
-  detectEnvironment 
+  detectEnvironment
 } from '@chaeco/logger'
 
 if (isNodeEnvironment) {
@@ -313,17 +314,17 @@ const logger = new Logger({
 
 ## 平台兼容性
 
-| 功能           | Node.js | 浏览器 |
+| 功能 | Node.js | 浏览器 |
 | -------------- | ------- | ------ |
-| 控制台输出     | ✅      | ✅     |
-| 文件写入       | ✅      | ❌     |
-| IndexedDB 存储 | ❌      | ✅     |
-| 日志采样       | ✅      | ✅     |
-| 日志限流       | ✅      | ✅     |
-| 日志过滤       | ✅      | ✅     |
-| 性能监控       | ✅      | ✅     |
-| 调用栈追踪     | ✅      | ✅     |
-| 彩色输出       | ✅      | ⚠️     |
+| 控制台输出 | ✅ | ✅ |
+| 文件写入 | ✅ | ❌ |
+| IndexedDB 存储 | ❌ | ✅ |
+| 日志采样 | ✅ | ✅ |
+| 日志限流 | ✅ | ✅ |
+| 日志过滤 | ✅ | ✅ |
+| 性能监控 | ✅ | ✅ |
+| 调用栈追踪 | ✅ | ✅ |
+| 彩色输出 | ✅ | ⚠️ |
 
 ## 示例
 
@@ -348,8 +349,10 @@ npm run docs         # 生成文档
 
 ## 文档
 
-- [生产环境部署指南](./PRODUCTION.md)
-- [更新日志](./CHANGELOG.md)
+- [完整使用示例](./EXAMPLES.md) - 包含基础、高级和生产环境示例
+- [性能优化指南](./PERFORMANCE.md) - 性能最佳实践和基准测试
+- [生产环境部署指南](./PRODUCTION.md) - 生产部署最佳实践
+- [更新日志](./CHANGELOG.md) - 版本历史和改进记录
 
 ## 贡献
 

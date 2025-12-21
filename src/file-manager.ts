@@ -132,13 +132,6 @@ export class FileManager {
   }
 
   private parseMaxSize(size: string): number {
-    const units: { [key: string]: number } = {
-      b: 1,
-      kb: 1024,
-      mb: 1024 * 1024,
-      gb: 1024 * 1024 * 1024,
-    }
-
     const match = size.toLowerCase().match(/^(\d+(?:\.\d+)?)\s*(b|kb|mb|gb)?$/)
     if (!match || !match[1]) return 10 * 1024 * 1024 // 默认 10MB
 
@@ -203,7 +196,7 @@ export class FileManager {
 
       // 3. 压缩旧日志：压缩超过1天的未压缩日志文件
       if (this.options.compress) {
-        this.compressOldLogs().catch(error => {
+        this.compressOldLogs().catch(_error => {
           // 静默失败，不影响主流程
         })
       }
@@ -437,7 +430,7 @@ export class FileManager {
   /**
    * 从 IndexedDB 查询存储的日志（仅浏览器环境）
    */
-  async queryLogs(options?: { limit?: number; offset?: number; date?: string }): Promise<any[]> {
+  async queryLogs(options?: { limit?: number; offset?: number; date?: string }): Promise<Record<string, unknown>[]> {
     if (!isBrowserEnvironment || !this.indexedDBStorage || !this.isInitialized) {
       console.warn('queryLogs is only available in browser environment with IndexedDB')
       return []
@@ -450,16 +443,17 @@ export class FileManager {
       })
       
       // 处理 IndexedDB 查询结果
-      let logs: any[] = []
+      let logs: Record<string, unknown>[] = []
       if (Array.isArray(result)) {
-        logs = result
+        logs = result as Record<string, unknown>[]
       } else if (result && typeof result === 'object' && 'data' in result) {
-        logs = Array.isArray((result as any).data) ? (result as any).data : []
+        const resultObj = result as Record<string, unknown>
+        logs = Array.isArray(resultObj.data) ? (resultObj.data as Record<string, unknown>[]) : []
       }
       
       // 如果指定了日期，进行过滤
       if (options?.date) {
-        return logs.filter((log: any) => log.date === options.date)
+        return logs.filter((log: Record<string, unknown>) => log.date === options.date)
       }
       
       return logs

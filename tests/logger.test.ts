@@ -116,9 +116,12 @@ describe('Logger', () => {
       }
       const metrics = logger.getMetrics()
       
-      // 采样率50%，应该有一些日志被采样
-      expect(metrics.sampledLogs).toBeGreaterThan(0)
-      expect(metrics.sampledLogs).toBeLessThan(100)
+      // 采样率50%，sampledLogs统计被采样掉的日志数
+      // 应该有30-70个日志被采样（统计学范围）
+      expect(metrics.sampledLogs).toBeGreaterThan(20)
+      expect(metrics.sampledLogs).toBeLessThan(80)
+      // 总日志数应该是100
+      expect(metrics.totalLogs).toBe(100)
     })
 
     it('should sample logs by level', () => {
@@ -251,16 +254,20 @@ describe('Logger', () => {
 
     it('should use custom formatter', () => {
       const messages: string[] = []
-      logger.configureFormat({
-        enabled: true,
-        formatter: (entry) => {
-          const formatted = `CUSTOM: ${entry.message}`
-          messages.push(formatted)
-          return formatted
+      const formatterLogger = new Logger({
+        console: { enabled: true, colors: false }, // 禁用颜色以使用formatMessage
+        file: { enabled: false }, // 禁用文件输出
+        format: {
+          enabled: true,
+          formatter: (entry) => {
+            const formatted = `CUSTOM: ${entry.message}`
+            messages.push(formatted)
+            return formatted
+          },
         },
       })
 
-      logger.info('test')
+      formatterLogger.info('test')
       expect(messages.length).toBeGreaterThan(0)
       expect(messages[0]).toContain('CUSTOM')
     })

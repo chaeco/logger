@@ -216,7 +216,8 @@ class Logger {
     shouldSample(level) {
         if (!this.sampling.enabled)
             return true;
-        const rate = this.sampling.rateByLevel[level] ?? 1;
+        // 先尝试使用该级别的采样率，如果没设置则使用全局rate
+        const rate = this.sampling.rateByLevel[level] ?? this.sampling.rate;
         return Math.random() < rate;
     }
     /**
@@ -526,8 +527,11 @@ class Logger {
         const startTime = performance.now();
         if (!this.shouldLog(level))
             return;
+        // 记录总日志数（包括被采样和限流的）
+        this.metrics.totalLogs++;
         // 采样检查
         if (!this.shouldSample(level)) {
+            this.metrics.sampledLogs++;
             this.metrics.droppedLogs++;
             return;
         }
@@ -542,9 +546,6 @@ class Logger {
             this.metrics.filteredLogs++;
             return;
         }
-        // 记录指标
-        this.metrics.totalLogs++;
-        this.metrics.sampledLogs++;
         this.writeToConsole(entry);
         this.writeToFile(entry);
         // 记录处理时间
@@ -554,7 +555,7 @@ class Logger {
     /**
      * 记录 DEBUG 级别日志
      * @param message - 日志消息
-     * Copilot: @param data - 附加数据（可选）
+     * @param data - 附加数据（可选）
      *
      * @example
      * ```typescript
@@ -630,12 +631,14 @@ class Logger {
             rateLimit: { ...this.rateLimit },
         };
         if (this.fileManager) {
+            // FileManager 的 options 是私有的，但我们需要访问以传递给子 Logger
+            const fm = this.fileManager;
             childOptions.file = {
                 enabled: true,
-                path: this.fileManager.options.path,
-                maxSize: this.fileManager.options.maxSize,
-                maxFiles: this.fileManager.options.maxFiles,
-                filename: this.fileManager.options.filename,
+                path: fm.options.path,
+                maxSize: fm.options.maxSize,
+                maxFiles: fm.options.maxFiles,
+                filename: fm.options.filename,
             };
         }
         return new Logger(childOptions);
@@ -749,6 +752,16 @@ class Logger {
         }
         if (options.rate !== undefined) {
             this.sampling.rate = options.rate;
+            // 如果设置了全局rate但没有设置特定级别的rate，清空rateByLevel以使用全局rate
+            if (!options.rateByLevel) {
+                this.sampling.rateByLevel = {
+                    debug: options.rate,
+                    info: options.rate,
+                    warn: options.rate,
+                    error: options.rate,
+                    silent: options.rate,
+                };
+            }
         }
         if (options.rateByLevel) {
             this.sampling.rateByLevel = {
@@ -1072,7 +1085,8 @@ class Logger {
             return [];
         }
         try {
-            return await this.fileManager.queryLogs(options);
+            const logs = await this.fileManager.queryLogs(options);
+            return logs;
         }
         catch (error) {
             console.error('Failed to query stored logs:', error);
@@ -1101,6 +1115,46 @@ class Logger {
         }
         catch (error) {
             console.error('Failed to clear stored logs:', error);
+        }
+    }
+    /**
+     * 关闭 Logger 并刷新队列
+     *
+     * @remarks
+     * 调用此方法来清理资源、刷新异步写入队列并关闭文件管理器。
+     * 在应用程序退出前调用此方法以确保所有日志都被写入。
+     *
+     * @example
+     * ```typescript
+     * // 程序退出前关闭 logger
+     * process.on('SIGINT', async () => {
+     *   await logger.close()
+     *   process.exit(0)
+     * })
+     * ```
+     */
+    async close() {
+        // 清除刷新定时器
+        if (this.fileManager && 'closeFlushTimer' in this.fileManager) {
+            const fm = this.fileManager;
+            if (fm.closeFlushTimer) {
+                clearTimeout(fm.closeFlushTimer);
+            }
+        }
+        // 关闭文件管理器
+        if (this.fileManager && 'close' in this.fileManager) {
+            const fm = this.fileManager;
+            if (typeof fm.close === 'function') {
+                try {
+                    const result = fm.close();
+                    if (result instanceof Promise) {
+                        await result;
+                    }
+                }
+                catch (error) {
+                    console.error('Error closing FileManager:', error);
+                }
+            }
         }
     }
 }

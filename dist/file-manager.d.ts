@@ -68,7 +68,7 @@ export declare class FileManager {
         limit?: number;
         offset?: number;
         date?: string;
-    }): Promise<any[]>;
+    }): Promise<Record<string, unknown>[]>;
     /**
      * 清除 IndexedDB 中的所有日志（仅浏览器环境）
      */

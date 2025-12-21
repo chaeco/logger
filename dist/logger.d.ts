@@ -1,4 +1,4 @@
-import { LogLevel, LoggerOptions, LoggerEventType, LoggerEventHandler, SamplingOptions, RateLimitOptions, FilterOptions, PerformanceMetrics, FormatOptions, ErrorHandlingOptions } from './types';
+import { LogLevel, LoggerOptions, LoggerEventType, LoggerEventHandler, LogData, SamplingOptions, RateLimitOptions, FilterOptions, PerformanceMetrics, FormatOptions, ErrorHandlingOptions } from './types';
 /**
  * Logger 类 - 功能完整的日志记录器
  *
@@ -107,14 +107,14 @@ export declare class Logger {
     /**
      * 记录 DEBUG 级别日志
      * @param message - 日志消息
-     * Copilot: @param data - 附加数据（可选）
+     * @param data - 附加数据（可选）
      *
      * @example
      * ```typescript
      * logger.debug('调试信息', { userId: 123 })
      * ```
      */
-    debug(message: string, data?: any): void;
+    debug(message: string, data?: LogData): void;
     /**
      * 记录 INFO 级别日志
      * @param message - 日志消息
@@ -125,7 +125,7 @@ export declare class Logger {
      * logger.info('用户登录成功', { username: 'john' })
      * ```
      */
-    info(message: string, data?: any): void;
+    info(message: string, data?: LogData): void;
     /**
      * 记录 WARN 级别日志
      * @param message - 日志消息
@@ -136,7 +136,7 @@ export declare class Logger {
      * logger.warn('数据库连接慢', { latency: 1000 })
      * ```
      */
-    warn(message: string, data?: any): void;
+    warn(message: string, data?: LogData): void;
     /**
      * 记录 ERROR 级别日志
      * @param message - 日志消息
@@ -147,7 +147,7 @@ export declare class Logger {
      * logger.error('数据库连接失败', { error: err.message })
      * ```
      */
-    error(message: string, data?: any): void;
+    error(message: string, data?: LogData): void;
     /**
      * 创建子 Logger 实例
      * @param name - 子 Logger 的名称
@@ -430,7 +430,7 @@ export declare class Logger {
         limit?: number;
         offset?: number;
         date?: string;
-    }): Promise<any[]>;
+    }): Promise<Record<string, unknown>[]>;
     /**
      * 清除浏览器 IndexedDB 中的所有存储日志
      *
@@ -445,6 +445,23 @@ export declare class Logger {
      * ```
      */
     clearStoredLogs(): Promise<void>;
+    /**
+     * 关闭 Logger 并刷新队列
+     *
+     * @remarks
+     * 调用此方法来清理资源、刷新异步写入队列并关闭文件管理器。
+     * 在应用程序退出前调用此方法以确保所有日志都被写入。
+     *
+     * @example
+     * ```typescript
+     * // 程序退出前关闭 logger
+     * process.on('SIGINT', async () => {
+     *   await logger.close()
+     *   process.exit(0)
+     * })
+     * ```
+     */
+    close(): Promise<void>;
 }
 /**
  * 默认 Logger 实例

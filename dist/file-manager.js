@@ -141,12 +141,6 @@ class FileManager {
             : path.join(this.options.path, `${baseName}.${this.fileIndex}.log`);
     }
     parseMaxSize(size) {
-        const units = {
-            b: 1,
-            kb: 1024,
-            mb: 1024 * 1024,
-            gb: 1024 * 1024 * 1024,
-        };
         const match = size.toLowerCase().match(/^(\d+(?:\.\d+)?)\s*(b|kb|mb|gb)?$/);
         if (!match || !match[1])
             return 10 * 1024 * 1024; // 默认 10MB
@@ -209,7 +203,7 @@ class FileManager {
             });
             // 3. 压缩旧日志：压缩超过1天的未压缩日志文件
             if (this.options.compress) {
-                this.compressOldLogs().catch(error => {
+                this.compressOldLogs().catch(_error => {
                     // 静默失败，不影响主流程
                 });
             }
@@ -438,7 +432,8 @@ class FileManager {
                 logs = result;
             }
             else if (result && typeof result === 'object' && 'data' in result) {
-                logs = Array.isArray(result.data) ? result.data : [];
+                const resultObj = result;
+                logs = Array.isArray(resultObj.data) ? resultObj.data : [];
             }
             // 如果指定了日期，进行过滤
             if (options?.date) {

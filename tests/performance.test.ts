@@ -8,6 +8,7 @@ import * as fs from 'fs'
 
 describe('Performance Benchmarks', () => {
   const testLogDir = './test-logs-perf'
+  const loggers: Logger[] = []
 
   beforeAll(() => {
     if (fs.existsSync(testLogDir)) {
@@ -15,7 +16,23 @@ describe('Performance Benchmarks', () => {
     }
   })
 
-  afterAll(() => {
+  afterEach(async () => {
+    // 关闭所有logger并等待队列刷新
+    for (const logger of loggers) {
+      await logger.close()
+    }
+    loggers.length = 0
+    // 等待所有文件操作完成
+    await new Promise(resolve => setTimeout(resolve, 100))
+  })
+
+  afterAll(async () => {
+    // 确保所有logger都已关闭
+    for (const logger of loggers) {
+      await logger.close()
+    }
+    // 额外等待确保所有异步操作完成
+    await new Promise(resolve => setTimeout(resolve, 200))
     if (fs.existsSync(testLogDir)) {
       fs.rmSync(testLogDir, { recursive: true, force: true })
     }
@@ -33,6 +50,7 @@ describe('Performance Benchmarks', () => {
           writeMode: 'sync',
         },
       })
+      loggers.push(logger)
 
       const iterations = 1000
       const start = Date.now()
@@ -70,6 +88,7 @@ describe('Performance Benchmarks', () => {
           flushInterval: 1000,
         },
       })
+      loggers.push(logger)
 
       const iterations = 1000
       const start = Date.now()
@@ -106,6 +125,7 @@ describe('Performance Benchmarks', () => {
           filename: 'sync-compare',
         },
       })
+      loggers.push(syncLogger)
 
       const syncStart = Date.now()
       for (let i = 0; i < iterations; i++) {
@@ -128,6 +148,7 @@ describe('Performance Benchmarks', () => {
           batchSize: 100,
         },
       })
+      loggers.push(asyncLogger)
 
       const asyncStart = Date.now()
       for (let i = 0; i < iterations; i++) {
@@ -153,6 +174,7 @@ describe('Performance Benchmarks', () => {
         console: { enabled: false },
         file: { enabled: false },
       })
+      loggers.push(logger)
 
       const iterations = 10000
       const start = Date.now()
@@ -182,6 +204,7 @@ describe('Performance Benchmarks', () => {
           jsonIndent: 0,
         },
       })
+      loggers.push(logger)
 
       const iterations = 10000
       const start = Date.now()
@@ -216,6 +239,7 @@ describe('Performance Benchmarks', () => {
           ],
         },
       })
+      loggers.push(logger)
 
       const iterations = 10000
       const start = Date.now()
@@ -243,6 +267,7 @@ describe('Performance Benchmarks', () => {
         console: { enabled: false },
         file: { enabled: false },
       })
+      loggers.push(logger)
 
       const startMemory = process.memoryUsage().heapUsed
       const iterations = 10000
@@ -273,6 +298,7 @@ describe('Performance Benchmarks', () => {
         console: { enabled: false },
         file: { enabled: false },
       })
+      loggers.push(noSamplingLogger)
 
       const noSamplingStart = Date.now()
       for (let i = 0; i < iterations; i++) {
@@ -290,6 +316,7 @@ describe('Performance Benchmarks', () => {
           rate: 0.1, // 10% sampling
         },
       })
+      loggers.push(samplingLogger)
 
       const samplingStart = Date.now()
       for (let i = 0; i < iterations; i++) {

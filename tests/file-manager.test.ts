@@ -124,19 +124,22 @@ describe('FileManager', () => {
         path: testLogDir,
         filename: 'cleanup-test',
         maxFiles: 5,
-        maxSize: '500b',
+        maxSize: '100b', // 更小的文件大小，触发更多轮转
       })
 
-      // 创建多个小文件
-      for (let i = 0; i < 10; i++) {
-        await fileManager.write('message ' + i)
-        await new Promise(resolve => setTimeout(resolve, 50))
+      // 创建多个小文件，每个文件超过100字节会触发轮转
+      const longMessage = 'x'.repeat(120) // 超过100字节
+      for (let i = 0; i < 15; i++) {
+        await fileManager.write(longMessage + ' ' + i)
+        await new Promise(resolve => setTimeout(resolve, 100))
       }
 
-      await new Promise(resolve => setTimeout(resolve, 200))
+      // 等待文件清理完成
+      await new Promise(resolve => setTimeout(resolve, 500))
 
-      const files = fs.readdirSync(testLogDir)
-      expect(files.length).toBeLessThanOrEqual(10)
+      const files = fs.readdirSync(testLogDir).filter(f => f.startsWith('cleanup-test'))
+      // maxFiles=5 应该只保留最近的5个文件
+      expect(files.length).toBeLessThanOrEqual(6) // 包括当前正在写入的文件
     })
   })
 

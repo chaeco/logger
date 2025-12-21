@@ -9,6 +9,11 @@
  */
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'silent';
 /**
+ * 日志数据类型
+ * 支持任何可序列化的数据类型
+ */
+export type LogData = Record<string, unknown> | Error | string | number | boolean | undefined | null | unknown[];
+/**
  * Logger 配置选项
  */
 export interface LoggerOptions {
@@ -87,7 +92,7 @@ export interface LogEntry {
     /** 调用者行号 */
     line?: number;
     /** 附加数据 */
-    data?: any;
+    data?: LogData;
 }
 /**
  * 日志采样配置选项
@@ -140,7 +145,7 @@ export interface LoggerEvent {
     /** 相关的错误对象（如果有） */
     error?: Error;
     /** 事件的附加数据 */
-    data?: any;
+    data?: LogData;
 }
 /**
  * 环境信息接口
