@@ -73,6 +73,24 @@ class Logger {
             filters: [],
             mode: 'all'
         };
+        // 日志格式化配置
+        this.format = {
+            enabled: false,
+            timestampFormat: 'YYYY-MM-DD HH:mm:ss.SSS',
+            formatter: undefined,
+            includeStack: true,
+            includeName: true,
+            json: false,
+            jsonIndent: 0,
+        };
+        // 错误处理配置
+        this.errorHandling = {
+            silent: true,
+            onError: undefined,
+            retryCount: 3,
+            retryDelay: 100,
+            fallbackToConsole: true,
+        };
         // 性能指标
         this.metrics = {
             totalLogs: 0,
@@ -99,11 +117,11 @@ class Logger {
         }
         // 文件输出配置 - 仅在 Node.js 环境中启用
         if (this.isNodeEnv && options.file?.enabled !== false) {
-            this.fileManager = new file_manager_1.FileManager(options.file);
+            this.fileManager = new file_manager_1.FileManager(options.file, options.async);
         }
         else if (this.isBrowserEnv && options.file?.enabled) {
             // 浏览器环境中启用 IndexedDB 存储
-            this.fileManager = new file_manager_1.FileManager(options.file);
+            this.fileManager = new file_manager_1.FileManager(options.file, options.async);
         }
         // 控制台输出配置
         this.consoleEnabled = options.console?.enabled ?? true;
@@ -138,6 +156,28 @@ class Logger {
                 enabled: options.filter.enabled ?? false,
                 filters: options.filter.filters ?? [],
                 mode: options.filter.mode ?? 'all'
+            };
+        }
+        // 日志格式化配置
+        if (options.format) {
+            this.format = {
+                enabled: options.format.enabled ?? false,
+                timestampFormat: options.format.timestampFormat ?? 'YYYY-MM-DD HH:mm:ss.SSS',
+                formatter: options.format.formatter,
+                includeStack: options.format.includeStack ?? true,
+                includeName: options.format.includeName ?? true,
+                json: options.format.json ?? false,
+                jsonIndent: options.format.jsonIndent ?? 0,
+            };
+        }
+        // 错误处理配置
+        if (options.errorHandling) {
+            this.errorHandling = {
+                silent: options.errorHandling.silent ?? true,
+                onError: options.errorHandling.onError,
+                retryCount: options.errorHandling.retryCount ?? 3,
+                retryDelay: options.errorHandling.retryDelay ?? 100,
+                fallbackToConsole: options.errorHandling.fallbackToConsole ?? true,
             };
         }
     }
@@ -303,19 +343,55 @@ class Logger {
         this.callerInfoCache.set(key, info);
     }
     formatMessage(entry) {
-        const parts = [];
-        if (this.consoleTimestamp) {
-            parts.push(`[${entry.timestamp}]`);
+        // 使用自定义格式化函数
+        if (this.format.enabled && this.format.formatter) {
+            try {
+                return this.format.formatter(entry);
+            }
+            catch (error) {
+                console.error('Error in custom formatter:', error);
+                // 降级到默认格式
+            }
         }
-        if (entry.name) {
+        // JSON 格式输出
+        if (this.format.json) {
+            const jsonEntry = {
+                timestamp: entry.timestamp,
+                level: entry.level,
+                message: entry.message,
+            };
+            if (this.format.includeName && entry.name) {
+                jsonEntry.name = entry.name;
+            }
+            if (this.format.includeStack && entry.file && entry.line) {
+                jsonEntry.file = entry.file;
+                jsonEntry.line = entry.line;
+            }
+            if (entry.data) {
+                jsonEntry.data = entry.data;
+            }
+            return JSON.stringify(jsonEntry, null, this.format.jsonIndent);
+        }
+        // 默认格式
+        const parts = [];
+        // 使用配置的时间戳格式
+        if (this.consoleTimestamp) {
+            const timestamp = (0, dayjs_1.default)(entry.timestamp).format(this.format.timestampFormat);
+            parts.push(`[${timestamp}]`);
+        }
+        if (this.format.includeName && entry.name) {
             parts.push(`[${entry.name}]`);
         }
         parts.push(entry.level.toUpperCase().padEnd(5));
         // 添加文件和行号信息
-        if (entry.file && entry.line) {
+        if (this.format.includeStack && entry.file && entry.line) {
             parts.push(`${entry.file}:${entry.line}`);
         }
         parts.push(entry.message);
+        // 添加附加数据
+        if (entry.data) {
+            parts.push(JSON.stringify(entry.data));
+        }
         return parts.join(' ');
     }
     formatConsoleMessage(entry) {
@@ -372,12 +448,40 @@ class Logger {
             const writePromise = this.fileManager.write(formattedMessage);
             if (writePromise instanceof Promise) {
                 writePromise.catch((error) => {
-                    this.emitEvent('fileWriteError', `文件写入失败: ${formattedMessage}`, error instanceof Error ? error : new Error(String(error)));
+                    this.handleWriteError(error, formattedMessage, entry);
                 });
             }
+            this.metrics.fileWrites++;
         }
         catch (error) {
-            this.emitEvent('fileWriteError', `文件写入失败: ${formattedMessage}`, error instanceof Error ? error : new Error(String(error)));
+            this.handleWriteError(error, formattedMessage, entry);
+        }
+    }
+    /**
+     * 处理写入错误
+     * @private
+     */
+    handleWriteError(error, message, entry) {
+        this.metrics.fileWriteErrors++;
+        const err = error instanceof Error ? error : new Error(String(error));
+        // 调用自定义错误处理器
+        if (this.errorHandling.onError) {
+            try {
+                this.errorHandling.onError(err, 'file_write');
+            }
+            catch (handlerError) {
+                console.error('Error in error handler:', handlerError);
+            }
+        }
+        // 发送错误事件
+        this.emitEvent('fileWriteError', `文件写入失败: ${message}`, err);
+        // 降级到控制台输出
+        if (this.errorHandling.fallbackToConsole && entry) {
+            console.error('[Logger Fallback]', this.formatConsoleMessage(entry));
+        }
+        // 如果不是静默模式，抛出错误
+        if (!this.errorHandling.silent) {
+            throw err;
         }
     }
     /**
@@ -737,6 +841,79 @@ class Logger {
         }
         if (options.mode !== undefined) {
             this.filter.mode = options.mode;
+        }
+    }
+    /**
+     * 配置日志格式化选项
+     * @param options - 格式化配置选项
+     *
+     * @example
+     * ```typescript
+     * // JSON 格式输出
+     * logger.configureFormat({
+     *   json: true,
+     *   jsonIndent: 2
+     * })
+     *
+     * // 自定义格式化函数
+     * logger.configureFormat({
+     *   enabled: true,
+     *   formatter: (entry) => `${entry.level}: ${entry.message}`
+     * })
+     * ```
+     */
+    configureFormat(options) {
+        if (options.enabled !== undefined) {
+            this.format.enabled = options.enabled;
+        }
+        if (options.timestampFormat !== undefined) {
+            this.format.timestampFormat = options.timestampFormat;
+        }
+        if (options.formatter !== undefined) {
+            this.format.formatter = options.formatter;
+        }
+        if (options.includeStack !== undefined) {
+            this.format.includeStack = options.includeStack;
+        }
+        if (options.includeName !== undefined) {
+            this.format.includeName = options.includeName;
+        }
+        if (options.json !== undefined) {
+            this.format.json = options.json;
+        }
+        if (options.jsonIndent !== undefined) {
+            this.format.jsonIndent = options.jsonIndent;
+        }
+    }
+    /**
+     * 配置错误处理选项
+     * @param options - 错误处理配置选项
+     *
+     * @example
+     * ```typescript
+     * logger.configureErrorHandling({
+     *   silent: false,  // 抛出异常
+     *   onError: (error, context) => {
+     *     console.error('Logger error:', error, context)
+     *   }
+     * })
+     * ```
+     */
+    configureErrorHandling(options) {
+        if (options.silent !== undefined) {
+            this.errorHandling.silent = options.silent;
+        }
+        if (options.onError !== undefined) {
+            this.errorHandling.onError = options.onError;
+        }
+        if (options.retryCount !== undefined) {
+            this.errorHandling.retryCount = options.retryCount;
+        }
+        if (options.retryDelay !== undefined) {
+            this.errorHandling.retryDelay = options.retryDelay;
+        }
+        if (options.fallbackToConsole !== undefined) {
+            this.errorHandling.fallbackToConsole = options.fallbackToConsole;
         }
     }
     /**

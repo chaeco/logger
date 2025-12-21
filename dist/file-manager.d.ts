@@ -1,4 +1,4 @@
-import { FileOptions } from './types';
+import { FileOptions, AsyncWriteOptions } from './types';
 /**
  * 文件管理器类
  * @internal
@@ -16,7 +16,11 @@ export declare class FileManager {
     private fileIndex;
     private indexedDBStorage?;
     private isInitialized;
-    constructor(options?: FileOptions);
+    private asyncOptions?;
+    private writeQueue;
+    private flushTimer?;
+    private isWriting;
+    constructor(options?: FileOptions, asyncOptions?: AsyncWriteOptions);
     private initializeIndexedDB;
     private ensureLogDirectory;
     private initializeCurrentFile;
@@ -25,8 +29,38 @@ export declare class FileManager {
     private shouldRotateFile;
     private rotateFile;
     private cleanupOldFiles;
+    /**
+     * 压缩旧的日志文件
+     * @private
+     */
+    private compressOldLogs;
     private checkDateRotation;
     write(message: string): Promise<void>;
+    /**
+     * 将消息加入异步写入队列
+     * @private
+     */
+    private enqueueMessage;
+    /**
+     * 启动定时刷新器
+     * @private
+     */
+    private startFlushTimer;
+    /**
+     * 刷新写入队列
+     * @private
+     */
+    private flushQueue;
+    /**
+     * 带重试机制的文件写入
+     * @private
+     */
+    private writeToFileWithRetry;
+    /**
+     * 带重试的追加文件内容
+     * @private
+     */
+    private appendToFileWithRetry;
     /**
      * 从 IndexedDB 查询存储的日志（仅浏览器环境）
      */
@@ -42,6 +76,13 @@ export declare class FileManager {
     /**
      * 关闭存储连接
      */
-    close(): void;
+    close(): Promise<void>;
+    /**
+     * 获取队列状态
+     */
+    getQueueStatus(): {
+        size: number;
+        isWriting: boolean;
+    };
 }
 //# sourceMappingURL=file-manager.d.ts.map

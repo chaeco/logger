@@ -1,6 +1,6 @@
 {
   "name": "@chaeco/logger",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "description": "A comprehensive logging module with file rotation, colors, and multiple log levels",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -9,10 +9,16 @@
     "build:watch": "tsc --watch",
     "dev": "tsx src/index.ts",
     "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
+    "format": "prettier --write \"src/**/*.ts\" \"examples/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"examples/**/*.ts\"",
     "docs": "typedoc --out docs src/index.ts",
-    "docs:watch": "typedoc --out docs src/index.ts --watch"
+    "docs:watch": "typedoc --out docs src/index.ts --watch",
+    "prepublishOnly": "npm run build && npm test",
+    "prepare": "npm run build"
   },
   "keywords": [
     "logger",
@@ -28,9 +34,15 @@
     "url": "git@github.com:chaeco/logger.git"
   },
   "devDependencies": {
-    "@types/jest": "^29.0.0",
+    "@types/jest": "^29.5.14",
     "@types/node": "^20.0.0",
-    "jest": "^29.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "jest": "^29.7.0",
+    "prettier": "^3.0.0",
+    "ts-jest": "^29.4.6",
+    "ts-node": "^10.9.2",
     "tsx": "^4.0.0",
     "typedoc": "^0.25.0",
     "typescript": "^5.0.0"

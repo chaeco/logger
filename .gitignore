@@ -2,6 +2,14 @@ docs/
 node_modules/
 *.log
 .DS_Store
+coverage/
+.env
+.env.local
+
+# 测试临时文件
+test-logs/
+test-logs-*/
+logs/
 
 # 通过 Git 安装时需要 dist/，不要忽略
 # dist/

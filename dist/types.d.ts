@@ -26,6 +26,12 @@ export interface LoggerOptions {
     rateLimit?: RateLimitOptions;
     /** 日志过滤器配置 */
     filter?: FilterOptions;
+    /** 日志格式化配置 */
+    format?: FormatOptions;
+    /** 异步写入配置（Node.js） */
+    async?: AsyncWriteOptions;
+    /** 错误处理配置 */
+    errorHandling?: ErrorHandlingOptions;
 }
 /**
  * 文件输出配置选项
@@ -41,6 +47,16 @@ export interface FileOptions {
     maxFiles?: number;
     /** 日志文件名前缀，默认为 'app' */
     filename?: string;
+    /** 日志文件最大保留天数，超过该天数的日志将被自动删除，默认为 30 天 */
+    maxAge?: number;
+    /** 是否压缩旧的日志文件（gzip），默认为 false */
+    compress?: boolean;
+    /** 文件写入模式：'sync' 同步写入，'async' 异步写入，默认 'sync' */
+    writeMode?: 'sync' | 'async';
+    /** 文件权限（Unix），默认 0o644 */
+    fileMode?: number;
+    /** 目录权限（Unix），默认 0o755 */
+    dirMode?: number;
 }
 /**
  * 控制台输出配置选项
@@ -173,5 +189,54 @@ export interface PerformanceMetrics {
     fileWriteErrors: number;
     /** 记录的时间戳 */
     timestamp: string;
+}
+/**
+ * 日志格式化配置选项
+ */
+export interface FormatOptions {
+    /** 是否启用自定义格式，默认为 false */
+    enabled?: boolean;
+    /** 日期时间格式，默认为 'YYYY-MM-DD HH:mm:ss.SSS' */
+    timestampFormat?: string;
+    /** 自定义格式化函数 */
+    formatter?: (entry: LogEntry) => string;
+    /** 是否包含调用栈信息，默认为 true */
+    includeStack?: boolean;
+    /** 是否包含 logger 名称，默认为 true */
+    includeName?: boolean;
+    /** JSON 格式输出，默认为 false */
+    json?: boolean;
+    /** JSON 缩进空格数（仅当 json=true 时生效），0 表示不缩进 */
+    jsonIndent?: number;
+}
+/**
+ * 异步写入配置选项（Node.js）
+ */
+export interface AsyncWriteOptions {
+    /** 是否启用异步写入，默认为 false */
+    enabled?: boolean;
+    /** 写入队列最大长度，默认为 1000 */
+    queueSize?: number;
+    /** 批量写入的最大条数，默认为 100 */
+    batchSize?: number;
+    /** 批量写入的最大等待时间（毫秒），默认为 1000 */
+    flushInterval?: number;
+    /** 队列满时的处理策略：'drop'（丢弃）、'block'（阻塞）、'overflow'（溢出到新队列） */
+    overflowStrategy?: 'drop' | 'block' | 'overflow';
+}
+/**
+ * 错误处理配置选项
+ */
+export interface ErrorHandlingOptions {
+    /** 是否静默错误（不抛出异常），默认为 true */
+    silent?: boolean;
+    /** 错误回调函数 */
+    onError?: (error: Error, context: string) => void;
+    /** 写入失败时的重试次数，默认为 3 */
+    retryCount?: number;
+    /** 重试延迟（毫秒），默认为 100 */
+    retryDelay?: number;
+    /** 是否在错误时降级到控制台输出，默认为 true */
+    fallbackToConsole?: boolean;
 }
 //# sourceMappingURL=types.d.ts.map

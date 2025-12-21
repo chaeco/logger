@@ -1,4 +1,4 @@
-import { LogLevel, LoggerOptions, LoggerEventType, LoggerEventHandler, SamplingOptions, RateLimitOptions, FilterOptions, PerformanceMetrics } from './types';
+import { LogLevel, LoggerOptions, LoggerEventType, LoggerEventHandler, SamplingOptions, RateLimitOptions, FilterOptions, PerformanceMetrics, FormatOptions, ErrorHandlingOptions } from './types';
 /**
  * Logger 类 - 功能完整的日志记录器
  *
@@ -45,6 +45,8 @@ export declare class Logger {
     private callerInfoCache;
     private readonly maxCacheSize;
     private filter;
+    private format;
+    private errorHandling;
     private metrics;
     private processingTimes;
     private readonly maxMetricsHistory;
@@ -86,6 +88,11 @@ export declare class Logger {
     private createLogEntry;
     private writeToConsole;
     private writeToFile;
+    /**
+     * 处理写入错误
+     * @private
+     */
+    private handleWriteError;
     /**
      * 日志过滤检查
      * @internal
@@ -299,6 +306,41 @@ export declare class Logger {
      * ```
      */
     configureFilter(options: FilterOptions): void;
+    /**
+     * 配置日志格式化选项
+     * @param options - 格式化配置选项
+     *
+     * @example
+     * ```typescript
+     * // JSON 格式输出
+     * logger.configureFormat({
+     *   json: true,
+     *   jsonIndent: 2
+     * })
+     *
+     * // 自定义格式化函数
+     * logger.configureFormat({
+     *   enabled: true,
+     *   formatter: (entry) => `${entry.level}: ${entry.message}`
+     * })
+     * ```
+     */
+    configureFormat(options: FormatOptions): void;
+    /**
+     * 配置错误处理选项
+     * @param options - 错误处理配置选项
+     *
+     * @example
+     * ```typescript
+     * logger.configureErrorHandling({
+     *   silent: false,  // 抛出异常
+     *   onError: (error, context) => {
+     *     console.error('Logger error:', error, context)
+     *   }
+     * })
+     * ```
+     */
+    configureErrorHandling(options: ErrorHandlingOptions): void;
     /**
      * 获取性能指标
      * @returns 当前的性能指标对象
