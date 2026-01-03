@@ -457,4 +457,101 @@ describe('Logger', () => {
       expect(logger.getLevel()).toBe('error')
     })
   })
+
+  describe('Circular Reference Handling', () => {
+    it('should handle objects with circular references', () => {
+      const testLogger = new Logger({
+        level: 'info',
+        console: { enabled: true },
+        file: { enabled: false },
+      })
+
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation()
+      
+      // 创建一个有循环引用的对象
+      const circularObj: any = {
+        name: 'test',
+        nested: {
+          value: 42,
+        },
+      }
+      circularObj.self = circularObj
+      circularObj.nested.parent = circularObj
+      
+      // 这不应该抛出错误
+      expect(() => {
+        testLogger.info('Object with circular reference', circularObj)
+      }).not.toThrow()
+      
+      // 验证日志被写入并包含[Circular]标记
+      expect(consoleSpy).toHaveBeenCalled()
+      const callOutput = consoleSpy.mock.calls[0]?.[0]?.toString() || ''
+      expect(callOutput).toContain('[Circular]')
+      
+      consoleSpy.mockRestore()
+    })
+
+    it('should handle circular references in file logging', (done) => {
+      const logger2 = new Logger({
+        level: 'info',
+        console: { enabled: false },
+        file: {
+          enabled: true,
+          path: testLogDir,
+        },
+      })
+
+      const circularObj: any = {
+        name: 'test',
+      }
+      circularObj.self = circularObj
+
+      // 这不应该抛出错误
+      expect(() => {
+        logger2.info('Testing circular reference in file', circularObj)
+      }).not.toThrow()
+
+      // 验证文件已创建
+      setTimeout(() => {
+        const files = fs.readdirSync(testLogDir)
+        expect(files.length).toBeGreaterThan(0)
+        done()
+      }, 100)
+    })
+
+    it('should handle circular references with socket-like objects', () => {
+      const testLogger = new Logger({
+        level: 'info',
+        console: { enabled: true },
+        file: { enabled: false },
+      })
+
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation()
+
+      // 模拟Express request/response对象的结构
+      const mockRequest: any = {
+        method: 'POST',
+        url: '/api/test',
+        headers: {
+          'content-type': 'application/json',
+        },
+      }
+      // 模拟循环引用：socket包含parser，parser包含socket
+      const parser: any = {
+        socket: mockRequest,
+      }
+      mockRequest.socket = {
+        parser: parser,
+      }
+
+      // 这不应该抛出错误
+      expect(() => {
+        testLogger.info('Request with circular structure', mockRequest)
+      }).not.toThrow()
+
+      expect(consoleSpy).toHaveBeenCalled()
+
+      consoleSpy.mockRestore()
+    })
+  })
 })

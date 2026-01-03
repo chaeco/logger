@@ -405,6 +405,36 @@ export class Logger {
     this.callerInfoCache.set(key, info)
   }
 
+  /**
+   * 安全的JSON序列化 - 处理循环引用
+   * @internal
+   */
+  private safeStringify(obj: any, indent?: number): string {
+    try {
+      const seen = new WeakSet()
+      return JSON.stringify(
+        obj,
+        (key: string, value: any) => {
+          if (typeof value === 'object' && value !== null) {
+            if (seen.has(value)) {
+              return '[Circular]'
+            }
+            seen.add(value)
+          }
+          return value
+        },
+        indent
+      )
+    } catch (error) {
+      // 如果仍然序列化失败，返回对象的字符串表示
+      try {
+        return String(obj)
+      } catch {
+        return '[Unable to serialize]'
+      }
+    }
+  }
+
   private formatMessage(entry: LogEntry): string {
     // 使用自定义格式化函数
     if (this.format.enabled && this.format.formatter) {
@@ -437,7 +467,7 @@ export class Logger {
         jsonEntry.data = entry.data
       }
 
-      return JSON.stringify(jsonEntry, null, this.format.jsonIndent)
+      return this.safeStringify(jsonEntry, this.format.jsonIndent)
     }
 
     // 默认格式
@@ -464,7 +494,7 @@ export class Logger {
 
     // 添加附加数据
     if (entry.data) {
-      parts.push(JSON.stringify(entry.data))
+      parts.push(this.safeStringify(entry.data))
     }
 
     return parts.join(' ')
@@ -496,7 +526,7 @@ export class Logger {
 
     // 添加附加数据
     if (entry.data) {
-      parts.push(JSON.stringify(entry.data))
+      parts.push(this.safeStringify(entry.data))
     }
 
     return parts.join(' ')
@@ -507,7 +537,7 @@ export class Logger {
 
     const entry: LogEntry = {
       level,
-      message: typeof message === 'string' ? message : JSON.stringify(message),
+      message: typeof message === 'string' ? message : this.safeStringify(message),
       timestamp: dayjs().format('YYYY-MM-DD HH:mm:ss.SSS'),
       data,
     }
