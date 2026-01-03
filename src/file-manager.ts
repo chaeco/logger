@@ -1,16 +1,40 @@
-import * as fs from 'fs'
-import * as path from 'path'
-import * as zlib from 'zlib'
-import { promisify } from 'util'
 import dayjs from 'dayjs'
 import { FileOptions, AsyncWriteOptions } from './types'
 import { isNodeEnvironment, isBrowserEnvironment } from './environment'
 import { IndexedDBStorage } from '@chaeco/indexed-db-storage'
 
-const gzip = promisify(zlib.gzip)
-const readFile = promisify(fs.readFile)
-const writeFile = promisify(fs.writeFile)
-const unlink = promisify(fs.unlink)
+// 条件导入 Node.js 模块（避免在浏览器环境中加载）
+let fs: typeof import('fs') | undefined
+let path: typeof import('path') | undefined
+let zlib: typeof import('zlib') | undefined
+let gzip: ((buffer: Buffer | string) => Promise<Buffer>) | undefined
+let readFile: ((path: string) => Promise<Buffer>) | undefined
+let writeFile: ((path: string, data: Buffer | string) => Promise<void>) | undefined
+let unlink: ((path: string) => Promise<void>) | undefined
+
+// 仅在 Node.js 环境中加载模块
+if (isNodeEnvironment) {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    fs = require('fs')
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    path = require('path')
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    zlib = require('zlib')
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { promisify } = require('util')
+    if (zlib) {
+      gzip = promisify(zlib.gzip)
+    }
+    if (fs) {
+      readFile = promisify(fs.readFile)
+      writeFile = promisify(fs.writeFile)
+      unlink = promisify(fs.unlink)
+    }
+  } catch (error) {
+    console.warn('@chaeco/logger: Failed to load Node.js modules:', error)
+  }
+}
 
 /**
  * 文件管理器类
@@ -98,12 +122,20 @@ export class FileManager {
   }
 
   private ensureLogDirectory(): void {
+    if (!fs || !fs.existsSync) {
+      console.warn('@chaeco/logger: fs module not available')
+      return
+    }
     if (!fs.existsSync(this.options.path)) {
       fs.mkdirSync(this.options.path, { recursive: true })
     }
   }
 
   private initializeCurrentFile(): void {
+    if (!fs || !path) {
+      console.warn('@chaeco/logger: fs or path module not available')
+      return
+    }
     const today = dayjs().format('YYYY-MM-DD')
     this.currentFilePath = path.join(this.options.path, `${this.options.filename}-${today}.log`)
     this.fileIndex = 0
@@ -124,6 +156,9 @@ export class FileManager {
   }
 
   private getIndexedFilePath(): string {
+    if (!path) {
+      return ''
+    }
     const today = dayjs().format('YYYY-MM-DD')
     const baseName = `${this.options.filename}-${today}`
     return this.fileIndex === 0
@@ -156,14 +191,17 @@ export class FileManager {
   }
 
   private cleanupOldFiles(): void {
+    if (!fs || !path) {
+      return
+    }
     try {
       const files = fs
         .readdirSync(this.options.path)
         .filter(file => file.startsWith(this.options.filename) && (file.endsWith('.log') || file.endsWith('.log.gz')))
         .map(file => ({
           name: file,
-          path: path.join(this.options.path, file),
-          stats: fs.statSync(path.join(this.options.path, file)),
+          path: path!.join(this.options.path, file),
+          stats: fs!.statSync(path!.join(this.options.path, file)),
         }))
         .sort((a, b) => b.stats.mtime.getTime() - a.stats.mtime.getTime())
 
@@ -172,7 +210,7 @@ export class FileManager {
         const filesToDelete = files.slice(this.options.maxFiles)
         filesToDelete.forEach(file => {
           try {
-            fs.unlinkSync(file.path)
+            fs!.unlinkSync(file.path)
           } catch (error) {
             // 忽略删除失败的文件
           }
@@ -187,7 +225,7 @@ export class FileManager {
         const fileAge = now - file.stats.mtime.getTime()
         if (fileAge > maxAgeMs) {
           try {
-            fs.unlinkSync(file.path)
+            fs!.unlinkSync(file.path)
           } catch (error) {
             // 忽略删除失败的文件
           }
@@ -210,14 +248,17 @@ export class FileManager {
    * @private
    */
   private async compressOldLogs(): Promise<void> {
+    if (!fs || !path || !readFile || !writeFile || !unlink || !gzip) {
+      return
+    }
     try {
       const files = fs
         .readdirSync(this.options.path)
         .filter(file => file.startsWith(this.options.filename) && file.endsWith('.log') && !file.endsWith('.log.gz'))
         .map(file => ({
           name: file,
-          path: path.join(this.options.path, file),
-          stats: fs.statSync(path.join(this.options.path, file)),
+          path: path!.join(this.options.path, file),
+          stats: fs!.statSync(path!.join(this.options.path, file)),
         }))
 
       const now = Date.now()
@@ -254,6 +295,9 @@ export class FileManager {
   }
 
   private checkDateRotation(): void {
+    if (!path) {
+      return
+    }
     const today = dayjs().format('YYYY-MM-DD')
     const currentFileDate = path
       .basename(this.currentFilePath)
@@ -399,6 +443,10 @@ export class FileManager {
    * @private
    */
   private async appendToFileWithRetry(content: string, retryCount: number = 3): Promise<void> {
+    if (!fs) {
+      console.warn('@chaeco/logger: fs module not available')
+      return
+    }
     let lastError: Error | undefined
 
     for (let attempt = 0; attempt <= retryCount; attempt++) {
@@ -407,6 +455,9 @@ export class FileManager {
           // 重试延迟
           await new Promise(resolve => setTimeout(resolve, 100 * attempt))
         }
+
+        // 确保日志目录存在
+        this.ensureLogDirectory()
 
         fs.appendFileSync(this.currentFilePath, content, {
           mode: this.options.fileMode,

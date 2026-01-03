@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- 修复浏览器环境兼容性：将 Node.js 模块（`fs`, `path`, `zlib`, `util`）改为条件导入，避免在浏览器环境（如 Vite）中导致 "Module externalized for browser compatibility" 错误
+
 ## [0.1.0] - 2025-12-21
 
 ### Added

@@ -1,43 +1,44 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.FileManager = void 0;
-const fs = __importStar(require("fs"));
-const path = __importStar(require("path"));
-const zlib = __importStar(require("zlib"));
-const util_1 = require("util");
 const dayjs_1 = __importDefault(require("dayjs"));
 const environment_1 = require("./environment");
 const indexed_db_storage_1 = require("@chaeco/indexed-db-storage");
-const gzip = (0, util_1.promisify)(zlib.gzip);
-const readFile = (0, util_1.promisify)(fs.readFile);
-const writeFile = (0, util_1.promisify)(fs.writeFile);
-const unlink = (0, util_1.promisify)(fs.unlink);
+// 条件导入 Node.js 模块（避免在浏览器环境中加载）
+let fs;
+let path;
+let zlib;
+let gzip;
+let readFile;
+let writeFile;
+let unlink;
+// 仅在 Node.js 环境中加载模块
+if (environment_1.isNodeEnvironment) {
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        fs = require('fs');
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        path = require('path');
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        zlib = require('zlib');
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { promisify } = require('util');
+        if (zlib) {
+            gzip = promisify(zlib.gzip);
+        }
+        if (fs) {
+            readFile = promisify(fs.readFile);
+            writeFile = promisify(fs.writeFile);
+            unlink = promisify(fs.unlink);
+        }
+    }
+    catch (error) {
+        console.warn('@chaeco/logger: Failed to load Node.js modules:', error);
+    }
+}
 /**
  * 文件管理器类
  * @internal
@@ -113,11 +114,19 @@ class FileManager {
         }
     }
     ensureLogDirectory() {
+        if (!fs || !fs.existsSync) {
+            console.warn('@chaeco/logger: fs module not available');
+            return;
+        }
         if (!fs.existsSync(this.options.path)) {
             fs.mkdirSync(this.options.path, { recursive: true });
         }
     }
     initializeCurrentFile() {
+        if (!fs || !path) {
+            console.warn('@chaeco/logger: fs or path module not available');
+            return;
+        }
         const today = (0, dayjs_1.default)().format('YYYY-MM-DD');
         this.currentFilePath = path.join(this.options.path, `${this.options.filename}-${today}.log`);
         this.fileIndex = 0;
@@ -134,6 +143,9 @@ class FileManager {
         }
     }
     getIndexedFilePath() {
+        if (!path) {
+            return '';
+        }
         const today = (0, dayjs_1.default)().format('YYYY-MM-DD');
         const baseName = `${this.options.filename}-${today}`;
         return this.fileIndex === 0
@@ -165,6 +177,9 @@ class FileManager {
         this.cleanupOldFiles();
     }
     cleanupOldFiles() {
+        if (!fs || !path) {
+            return;
+        }
         try {
             const files = fs
                 .readdirSync(this.options.path)
@@ -217,6 +232,9 @@ class FileManager {
      * @private
      */
     async compressOldLogs() {
+        if (!fs || !path || !readFile || !writeFile || !unlink || !gzip) {
+            return;
+        }
         try {
             const files = fs
                 .readdirSync(this.options.path)
@@ -258,6 +276,9 @@ class FileManager {
         }
     }
     checkDateRotation() {
+        if (!path) {
+            return;
+        }
         const today = (0, dayjs_1.default)().format('YYYY-MM-DD');
         const currentFileDate = path
             .basename(this.currentFilePath)
@@ -389,6 +410,10 @@ class FileManager {
      * @private
      */
     async appendToFileWithRetry(content, retryCount = 3) {
+        if (!fs) {
+            console.warn('@chaeco/logger: fs module not available');
+            return;
+        }
         let lastError;
         for (let attempt = 0; attempt <= retryCount; attempt++) {
             try {
@@ -396,6 +421,8 @@ class FileManager {
                     // 重试延迟
                     await new Promise(resolve => setTimeout(resolve, 100 * attempt));
                 }
+                // 确保日志目录存在
+                this.ensureLogDirectory();
                 fs.appendFileSync(this.currentFilePath, content, {
                     mode: this.options.fileMode,
                 });
