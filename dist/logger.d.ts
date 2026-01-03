@@ -106,48 +106,48 @@ export declare class Logger {
     private log;
     /**
      * 记录 DEBUG 级别日志
-     * @param message - 日志消息
-     * @param data - 附加数据（可选）
+     * @param args - 日志参数，支持任意数量
      *
      * @example
      * ```typescript
      * logger.debug('调试信息', { userId: 123 })
+     * logger.debug({ message: '调试信息', data: { key: 'value' } })
      * ```
      */
-    debug(message: string, ...args: any[]): void;
+    debug(...args: any[]): void;
     /**
      * 记录 INFO 级别日志
-     * @param message - 日志消息
-     * @param data - 附加数据（可选）
+     * @param args - 日志参数，支持任意数量
      *
      * @example
      * ```typescript
      * logger.info('用户登录成功', { username: 'john' })
+     * logger.info({ message: '用户登录', userId: 123 })
      * ```
      */
-    info(message: string, ...args: any[]): void;
+    info(...args: any[]): void;
     /**
      * 记录 WARN 级别日志
-     * @param message - 日志消息
-     * @param data - 附加数据（可选）
+     * @param args - 日志参数，支持任意数量
      *
      * @example
      * ```typescript
      * logger.warn('数据库连接慢', { latency: 1000 })
+     * logger.warn(new Error('警告信息'), { context: 'db' })
      * ```
      */
-    warn(message: string, ...args: any[]): void;
+    warn(...args: any[]): void;
     /**
      * 记录 ERROR 级别日志
-     * @param message - 日志消息
-     * @param data - 附加数据（可选）
+     * @param args - 日志参数，支持任意数量
      *
      * @example
      * ```typescript
      * logger.error('数据库连接失败', { error: err.message })
+     * logger.error(new Error('严重错误'), { userId: 123 })
      * ```
      */
-    error(message: string, ...args: any[]): void;
+    error(...args: any[]): void;
     /**
      * 创建子 Logger 实例
      * @param name - 子 Logger 的名称

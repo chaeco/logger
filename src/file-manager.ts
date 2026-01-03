@@ -1,7 +1,19 @@
 import dayjs from 'dayjs'
 import { FileOptions, AsyncWriteOptions } from './types'
 import { isNodeEnvironment, isBrowserEnvironment } from './environment'
-import { IndexedDBStorage } from '@chaeco/indexed-db-storage'
+
+// 条件导入 IndexedDB 模块（仅在浏览器环境中）
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let IndexedDBStorage: any
+if (isBrowserEnvironment) {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const indexedDBModule = require('@chaeco/indexed-db-storage')
+    IndexedDBStorage = indexedDBModule.IndexedDBStorage
+  } catch (error) {
+    console.warn('@chaeco/logger: Failed to load IndexedDB storage:', error)
+  }
+}
 
 // 条件导入 Node.js 模块（避免在浏览器环境中加载）
 let fs: typeof import('fs') | undefined
@@ -53,7 +65,7 @@ export class FileManager {
   private fileIndex: number = 0
   
   // 浏览器环境使用
-  private indexedDBStorage?: IndexedDBStorage
+  private indexedDBStorage?: typeof IndexedDBStorage
   private isInitialized: boolean = false
 
   // 异步写入队列

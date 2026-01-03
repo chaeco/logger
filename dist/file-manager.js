@@ -6,7 +6,19 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.FileManager = void 0;
 const dayjs_1 = __importDefault(require("dayjs"));
 const environment_1 = require("./environment");
-const indexed_db_storage_1 = require("@chaeco/indexed-db-storage");
+// 条件导入 IndexedDB 模块（仅在浏览器环境中）
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let IndexedDBStorage;
+if (environment_1.isBrowserEnvironment) {
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const indexedDBModule = require('@chaeco/indexed-db-storage');
+        IndexedDBStorage = indexedDBModule.IndexedDBStorage;
+    }
+    catch (error) {
+        console.warn('@chaeco/logger: Failed to load IndexedDB storage:', error);
+    }
+}
 // 条件导入 Node.js 模块（避免在浏览器环境中加载）
 let fs;
 let path;
@@ -95,7 +107,7 @@ class FileManager {
     }
     async initializeIndexedDB() {
         try {
-            this.indexedDBStorage = new indexed_db_storage_1.IndexedDBStorage({
+            this.indexedDBStorage = new IndexedDBStorage({
                 dbName: '@chaeco/logger-files',
                 storeName: this.options.filename,
                 maxRecords: this.options.maxFiles,

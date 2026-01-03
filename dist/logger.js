@@ -413,6 +413,10 @@ class Logger {
             parts.push(color_utils_1.ColorUtils.colorizeFileLocation(`${entry.file}:${entry.line}`));
         }
         parts.push(color_utils_1.ColorUtils.colorizeMessage(entry.level, entry.message));
+        // 添加附加数据
+        if (entry.data) {
+            parts.push(JSON.stringify(entry.data));
+        }
         return parts.join(' ');
     }
     createLogEntry(level, message, data) {
@@ -524,8 +528,27 @@ class Logger {
         this.metrics.avgProcessingTime =
             this.processingTimes.reduce((a, b) => a + b, 0) / this.processingTimes.length;
     }
-    log(level, message, ...args) {
-        const data = args.length === 1 ? args[0] : args.length > 1 ? args : undefined;
+    log(level, ...args) {
+        // 解析参数：第一个参数如果是字符串当作消息，否则当作数据
+        let message;
+        let data;
+        if (args.length === 0) {
+            message = '';
+            data = undefined;
+        }
+        else if (typeof args[0] === 'string') {
+            message = args[0];
+            data = args.length === 2 ? args[1] : args.length > 2 ? args.slice(1) : undefined;
+        }
+        else if (args[0] instanceof Error) {
+            // 特殊处理Error对象
+            message = args[0].message || args[0].toString();
+            data = args.length === 1 ? undefined : { error: args[0], additionalData: args.slice(1) };
+        }
+        else {
+            message = '';
+            data = args.length === 1 ? args[0] : args;
+        }
         const startTime = performance.now();
         if (!this.shouldLog(level))
             return;
@@ -556,55 +579,55 @@ class Logger {
     }
     /**
      * 记录 DEBUG 级别日志
-     * @param message - 日志消息
-     * @param data - 附加数据（可选）
+     * @param args - 日志参数，支持任意数量
      *
      * @example
      * ```typescript
      * logger.debug('调试信息', { userId: 123 })
+     * logger.debug({ message: '调试信息', data: { key: 'value' } })
      * ```
      */
-    debug(message, ...args) {
-        this.log('debug', message, ...args);
+    debug(...args) {
+        this.log('debug', ...args);
     }
     /**
      * 记录 INFO 级别日志
-     * @param message - 日志消息
-     * @param data - 附加数据（可选）
+     * @param args - 日志参数，支持任意数量
      *
      * @example
      * ```typescript
      * logger.info('用户登录成功', { username: 'john' })
+     * logger.info({ message: '用户登录', userId: 123 })
      * ```
      */
-    info(message, ...args) {
-        this.log('info', message, ...args);
+    info(...args) {
+        this.log('info', ...args);
     }
     /**
      * 记录 WARN 级别日志
-     * @param message - 日志消息
-     * @param data - 附加数据（可选）
+     * @param args - 日志参数，支持任意数量
      *
      * @example
      * ```typescript
      * logger.warn('数据库连接慢', { latency: 1000 })
+     * logger.warn(new Error('警告信息'), { context: 'db' })
      * ```
      */
-    warn(message, ...args) {
-        this.log('warn', message, ...args);
+    warn(...args) {
+        this.log('warn', ...args);
     }
     /**
      * 记录 ERROR 级别日志
-     * @param message - 日志消息
-     * @param data - 附加数据（可选）
+     * @param args - 日志参数，支持任意数量
      *
      * @example
      * ```typescript
      * logger.error('数据库连接失败', { error: err.message })
+     * logger.error(new Error('严重错误'), { userId: 123 })
      * ```
      */
-    error(message, ...args) {
-        this.log('error', message, ...args);
+    error(...args) {
+        this.log('error', ...args);
     }
     /**
      * 创建子 Logger 实例
