@@ -188,7 +188,8 @@ class Logger {
      * 发出事件
      * @internal
      */
-    emitEvent(type, message, error, data) {
+    emitEvent(type, message, error, ...args) {
+        const data = args.length === 1 ? args[0] : args.length > 1 ? args : undefined;
         const handlers = this.eventHandlers.get(type);
         if (!handlers || handlers.length === 0)
             return;
@@ -523,7 +524,8 @@ class Logger {
         this.metrics.avgProcessingTime =
             this.processingTimes.reduce((a, b) => a + b, 0) / this.processingTimes.length;
     }
-    log(level, message, data) {
+    log(level, message, ...args) {
+        const data = args.length === 1 ? args[0] : args.length > 1 ? args : undefined;
         const startTime = performance.now();
         if (!this.shouldLog(level))
             return;
@@ -562,8 +564,8 @@ class Logger {
      * logger.debug('调试信息', { userId: 123 })
      * ```
      */
-    debug(message, data) {
-        this.log('debug', message, data);
+    debug(message, ...args) {
+        this.log('debug', message, ...args);
     }
     /**
      * 记录 INFO 级别日志
@@ -575,8 +577,8 @@ class Logger {
      * logger.info('用户登录成功', { username: 'john' })
      * ```
      */
-    info(message, data) {
-        this.log('info', message, data);
+    info(message, ...args) {
+        this.log('info', message, ...args);
     }
     /**
      * 记录 WARN 级别日志
@@ -588,8 +590,8 @@ class Logger {
      * logger.warn('数据库连接慢', { latency: 1000 })
      * ```
      */
-    warn(message, data) {
-        this.log('warn', message, data);
+    warn(message, ...args) {
+        this.log('warn', message, ...args);
     }
     /**
      * 记录 ERROR 级别日志
@@ -601,8 +603,8 @@ class Logger {
      * logger.error('数据库连接失败', { error: err.message })
      * ```
      */
-    error(message, data) {
-        this.log('error', message, data);
+    error(message, ...args) {
+        this.log('error', message, ...args);
     }
     /**
      * 创建子 Logger 实例

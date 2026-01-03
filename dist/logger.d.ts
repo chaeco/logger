@@ -1,4 +1,4 @@
-import { LogLevel, LoggerOptions, LoggerEventType, LoggerEventHandler, LogData, SamplingOptions, RateLimitOptions, FilterOptions, PerformanceMetrics, FormatOptions, ErrorHandlingOptions } from './types';
+import { LogLevel, LoggerOptions, LoggerEventType, LoggerEventHandler, SamplingOptions, RateLimitOptions, FilterOptions, PerformanceMetrics, FormatOptions, ErrorHandlingOptions } from './types';
 /**
  * Logger 类 - 功能完整的日志记录器
  *
@@ -114,7 +114,7 @@ export declare class Logger {
      * logger.debug('调试信息', { userId: 123 })
      * ```
      */
-    debug(message: string, data?: LogData): void;
+    debug(message: string, ...args: any[]): void;
     /**
      * 记录 INFO 级别日志
      * @param message - 日志消息
@@ -125,7 +125,7 @@ export declare class Logger {
      * logger.info('用户登录成功', { username: 'john' })
      * ```
      */
-    info(message: string, data?: LogData): void;
+    info(message: string, ...args: any[]): void;
     /**
      * 记录 WARN 级别日志
      * @param message - 日志消息
@@ -136,7 +136,7 @@ export declare class Logger {
      * logger.warn('数据库连接慢', { latency: 1000 })
      * ```
      */
-    warn(message: string, data?: LogData): void;
+    warn(message: string, ...args: any[]): void;
     /**
      * 记录 ERROR 级别日志
      * @param message - 日志消息
@@ -147,7 +147,7 @@ export declare class Logger {
      * logger.error('数据库连接失败', { error: err.message })
      * ```
      */
-    error(message: string, data?: LogData): void;
+    error(message: string, ...args: any[]): void;
     /**
      * 创建子 Logger 实例
      * @param name - 子 Logger 的名称

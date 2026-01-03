@@ -11,9 +11,10 @@ export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'silent'
 
 /**
  * 日志数据类型
- * 支持任何可序列化的数据类型
+ * 支持任何数据类型
  */
-export type LogData = Record<string, unknown> | Error | string | number | boolean | undefined | null | unknown[]
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type LogData = any
 
 /**
  * Logger 配置选项
@@ -97,7 +98,8 @@ export interface LogEntry {
   /** 调用者行号 */
   line?: number
   /** 附加数据 */
-  data?: LogData
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data?: any
 }
 
 /**
@@ -155,7 +157,8 @@ export interface LoggerEvent {
   /** 相关的错误对象（如果有） */
   error?: Error
   /** 事件的附加数据 */
-  data?: LogData
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data?: any
 }
 
 /**

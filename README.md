@@ -191,11 +191,16 @@ console.log(metrics.avgProcessingTime)
 ### 核心方法
 
 ```typescript
-// 日志记录
-logger.debug(message, data?)
-logger.info(message, data?)
-logger.warn(message, data?)
-logger.error(message, data?)
+// 日志记录 - 支持多个参数
+logger.debug(message, ...args)
+logger.info(message, ...args)
+logger.warn(message, ...args)
+logger.error(message, ...args)
+
+// 示例
+logger.info('用户登录', { userId: 123, username: 'john' })
+logger.error('数据库错误', new Error('连接失败'), { host: 'localhost' })
+logger.debug('调试信息', arg1, arg2, arg3)
 
 // 级别控制
 logger.setLevel(level: LogLevel)

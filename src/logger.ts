@@ -1,4 +1,5 @@
-import { LogLevel, LoggerOptions, LogEntry, LoggerEventType, LoggerEventHandler, LoggerEvent, LogData, SamplingOptions, RateLimitOptions, FilterOptions, PerformanceMetrics, FormatOptions, ErrorHandlingOptions } from './types'
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { LogLevel, LoggerOptions, LogEntry, LoggerEventType, LoggerEventHandler, LoggerEvent, SamplingOptions, RateLimitOptions, FilterOptions, PerformanceMetrics, FormatOptions, ErrorHandlingOptions } from './types'
 import { ColorUtils } from './color-utils'
 import { FileManager } from './file-manager'
 import { isNodeEnvironment, isBrowserEnvironment } from './environment'
@@ -221,7 +222,8 @@ export class Logger {
    * 发出事件
    * @internal
    */
-  private emitEvent(type: LoggerEventType, message: string, error?: Error, data?: LogData): void {
+  private emitEvent(type: LoggerEventType, message: string, error?: Error, ...args: any[]): void {
+    const data = args.length === 1 ? args[0] : args.length > 1 ? args : undefined
     const handlers = this.eventHandlers.get(type)
     if (!handlers || handlers.length === 0) return
 
@@ -495,7 +497,7 @@ export class Logger {
     return parts.join(' ')
   }
 
-  private createLogEntry(level: LogLevel, message: string, data?: LogData): LogEntry {
+  private createLogEntry(level: LogLevel, message: string, data?: any): LogEntry {
     const callerInfo = this.getCallerInfo()
 
     const entry: LogEntry = {
@@ -623,7 +625,8 @@ export class Logger {
       this.processingTimes.reduce((a, b) => a + b, 0) / this.processingTimes.length
   }
 
-  private log(level: LogLevel, message: string, data?: LogData): void {
+  private log(level: LogLevel, message: string, ...args: any[]): void {
+    const data = args.length === 1 ? args[0] : args.length > 1 ? args : undefined
     const startTime = performance.now()
     
     if (!this.shouldLog(level)) return
@@ -671,8 +674,8 @@ export class Logger {
    * logger.debug('调试信息', { userId: 123 })
    * ```
    */
-  debug(message: string, data?: LogData): void {
-    this.log('debug', message, data)
+  debug(message: string, ...args: any[]): void {
+    this.log('debug', message, ...args)
   }
 
   /**
@@ -685,8 +688,8 @@ export class Logger {
    * logger.info('用户登录成功', { username: 'john' })
    * ```
    */
-  info(message: string, data?: LogData): void {
-    this.log('info', message, data)
+  info(message: string, ...args: any[]): void {
+    this.log('info', message, ...args)
   }
 
   /**
@@ -699,8 +702,8 @@ export class Logger {
    * logger.warn('数据库连接慢', { latency: 1000 })
    * ```
    */
-  warn(message: string, data?: LogData): void {
-    this.log('warn', message, data)
+  warn(message: string, ...args: any[]): void {
+    this.log('warn', message, ...args)
   }
 
   /**
@@ -713,8 +716,8 @@ export class Logger {
    * logger.error('数据库连接失败', { error: err.message })
    * ```
    */
-  error(message: string, data?: LogData): void {
-    this.log('error', message, data)
+  error(message: string, ...args: any[]): void {
+    this.log('error', message, ...args)
   }
 
   /**
