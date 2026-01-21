@@ -312,7 +312,7 @@ class FileManager {
                     timestamp: Date.now(),
                     date: (0, dayjs_1.default)().format('YYYY-MM-DD'),
                     content: message,
-                    size: Buffer.byteLength(message, 'utf8'),
+                    size: new Blob([message]).size,
                 };
                 await this.indexedDBStorage.save(logEntry);
             }

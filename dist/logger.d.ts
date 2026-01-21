@@ -83,6 +83,11 @@ export declare class Logger {
      * @internal
      */
     private cacheCallerInfo;
+    /**
+     * 安全的JSON序列化 - 处理循环引用
+     * @internal
+     */
+    private safeStringify;
     private formatMessage;
     private formatConsoleMessage;
     private createLogEntry;

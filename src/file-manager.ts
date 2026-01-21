@@ -63,7 +63,7 @@ export class FileManager {
   private currentFilePath: string = ''
   private currentFileSize: number = 0
   private fileIndex: number = 0
-  
+
   // 浏览器环境使用
   private indexedDBStorage?: typeof IndexedDBStorage
   private isInitialized: boolean = false
@@ -122,7 +122,7 @@ export class FileManager {
         cleanupInterval: 60 * 60 * 1000, // 1 小时
         timestampIndexName: 'timestamp',
       })
-      
+
       await this.indexedDBStorage.init()
       this.isInitialized = true
       if (typeof console !== 'undefined') {
@@ -232,7 +232,7 @@ export class FileManager {
       // 2. 按时间清理：删除超过 maxAge 天数的文件
       const now = Date.now()
       const maxAgeMs = this.options.maxAge * 24 * 60 * 60 * 1000
-      
+
       files.forEach(file => {
         const fileAge = now - file.stats.mtime.getTime()
         if (fileAge > maxAgeMs) {
@@ -281,11 +281,11 @@ export class FileManager {
         // 检查文件是否超过1天且不是今天的文件
         const fileAge = now - file.stats.mtime.getTime()
         const isCurrentFile = file.path === this.currentFilePath
-        
+
         // 从文件名中提取日期
         const dateMatch = file.name.match(/(\d{4}-\d{2}-\d{2})/)
         const fileDate = dateMatch ? dateMatch[1] : null
-        
+
         if (fileAge > oneDayMs && !isCurrentFile && fileDate && fileDate !== today) {
           try {
             // 读取文件内容
@@ -333,7 +333,7 @@ export class FileManager {
           timestamp: Date.now(),
           date: dayjs().format('YYYY-MM-DD'),
           content: message,
-          size: Buffer.byteLength(message, 'utf8'),
+          size: new Blob([message]).size,
         }
         await this.indexedDBStorage.save(logEntry)
       } catch (error) {
@@ -504,7 +504,7 @@ export class FileManager {
         limit: options?.limit ?? 100,
         offset: options?.offset ?? 0,
       })
-      
+
       // 处理 IndexedDB 查询结果
       let logs: Record<string, unknown>[] = []
       if (Array.isArray(result)) {
@@ -513,12 +513,12 @@ export class FileManager {
         const resultObj = result as Record<string, unknown>
         logs = Array.isArray(resultObj.data) ? (resultObj.data as Record<string, unknown>[]) : []
       }
-      
+
       // 如果指定了日期，进行过滤
       if (options?.date) {
         return logs.filter((log: Record<string, unknown>) => log.date === options.date)
       }
-      
+
       return logs
     } catch (error) {
       console.error('Failed to query logs from IndexedDB:', error)
