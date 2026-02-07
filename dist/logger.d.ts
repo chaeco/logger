@@ -12,7 +12,7 @@ import { LogLevel, LoggerOptions, LoggerEventType, LoggerEventHandler, SamplingO
  *
  * @example
  * ```typescript
- * // 使用默认实例
+ * // 使用默认实例（首次写入时自动初始化）
  * import { logger } from '@chaeco/logger'
  * logger.info('这是一条信息日志')
  *
@@ -56,6 +56,21 @@ export declare class Logger {
      * @param options - Logger 配置选项
      */
     constructor(options?: LoggerOptions);
+    /**
+     * 初始化日志器
+     * @remarks
+     * 通常不需要手动调用此方法，首次写入日志时会自动初始化。
+     * 仅在需要提前确保日志目录存在时手动调用（例如在应用启动时）。
+     *
+     * @example
+     * ```typescript
+     * import { logger } from '@chaeco/logger'
+     *
+     * // 可选：提前初始化（首次写入时也会自动初始化）
+     * logger.init()
+     * ```
+     */
+    init(): void;
     private shouldLog;
     /**
      * 发出事件

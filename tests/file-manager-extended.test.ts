@@ -25,13 +25,14 @@ describe('FileManager Extended Tests', () => {
 
   describe('Error Handling', () => {
     it('should throw error for invalid path', () => {
-      // 创建一个无效路径的 FileManager 应该抛出错误
+      // 创建一个无效路径的 FileManager 不应该抛出错误（首次写入时才初始化）
+      // 构造函数不再立即初始化
       expect(() => {
         new FileManager({
           enabled: true,
           path: '/invalid/nonexistent/path',
         })
-      }).toThrow()
+      }).not.toThrow()
     })
 
     it('should handle write to closed file manager', async () => {
@@ -42,7 +43,7 @@ describe('FileManager Extended Tests', () => {
       })
 
       await fm.close()
-      
+
       // 关闭后写入不应该抛出错误
       await expect(fm.write('test after close')).resolves.not.toThrow()
     })
@@ -70,6 +71,12 @@ describe('FileManager Extended Tests', () => {
       })
 
       expect(fm).toBeDefined()
+
+      // 目录不会在构造函数中创建
+      expect(fs.existsSync(customDir)).toBe(false)
+
+      // 首次写入时创建
+      fm.write('test')
       expect(fs.existsSync(customDir)).toBe(true)
     })
   })
@@ -89,9 +96,9 @@ describe('FileManager Extended Tests', () => {
       const longMessage = 'x'.repeat(150)
       await fm.write(longMessage)
       await fm.write(longMessage)
-      
+
       await new Promise(resolve => setTimeout(resolve, 500))
-      
+
       await fm.close()
     })
   })
@@ -129,7 +136,7 @@ describe('FileManager Extended Tests', () => {
       })
 
       await fm.write('should not write')
-      
+
       // 不应该有文件生成
       const files = fs.readdirSync(testLogDir).filter(f => f.includes('disabled-write'))
       expect(files.length).toBe(0)

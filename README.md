@@ -27,6 +27,7 @@ npm install git+ssh://git@github.com:chaeco/logger.git
 ```typescript
 import { logger } from '@chaeco/logger'
 
+// 直接使用，首次写入时自动初始化
 logger.info('应用启动')
 logger.warn('警告信息')
 logger.error('错误信息', { error: err })
@@ -34,6 +35,33 @@ logger.debug('调试信息')
 
 // 完全禁用日志
 logger.setLevel('silent')
+```
+
+> **💡 提示**：日志目录会在首次写入日志时自动创建，无需手动初始化。这种设计避免了在 Electron 等打包环境中的初始化问题。
+
+### Electron 应用中使用
+
+```typescript
+import { logger } from '@chaeco/logger'
+import { Logger } from '@chaeco/logger'
+import path from 'path'
+import { app } from 'electron'
+
+// 方式一：使用默认 logger
+logger.info('Electron 应用已启动')
+
+// 方式二：自定义配置（推荐）
+const customLogger = new Logger({
+  name: 'electron-app',
+  file: {
+    enabled: true,
+    path: path.join(app.getPath('userData'), 'logs'),
+    maxSize: '10m',
+    maxFiles: 30,
+  },
+})
+
+customLogger.info('Electron 应用已启动')
 ```
 
 ### 自定义配置

@@ -27,8 +27,7 @@
 
 对于高吞吐量场景，强烈推荐使用异步写入模式：
 
-\`\`\`typescript
-const logger = new Logger({
+\`\`\`typescript// 首次写入时自动初始化，无需手动配置const logger = new Logger({
   file: {
     enabled: true,
     path: './logs',

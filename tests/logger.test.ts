@@ -29,19 +29,19 @@ describe('Logger', () => {
 
     it('should filter logs below current level', () => {
       const consoleSpy = jest.spyOn(console, 'log').mockImplementation()
-      
+
       logger.setLevel('warn')
       logger.debug('debug message')
       logger.info('info message')
       logger.warn('warn message')
-      
+
       expect(consoleSpy).not.toHaveBeenCalledWith(
         expect.stringContaining('debug message')
       )
       expect(consoleSpy).not.toHaveBeenCalledWith(
         expect.stringContaining('info message')
       )
-      
+
       consoleSpy.mockRestore()
     })
 
@@ -100,7 +100,7 @@ describe('Logger', () => {
         enabled: true,
         rate: 0.5,
       })
-      
+
       const metrics = logger.getMetrics()
       expect(metrics).toBeDefined()
     })
@@ -110,12 +110,12 @@ describe('Logger', () => {
         enabled: true,
         rate: 0.5,
       })
-      
+
       for (let i = 0; i < 100; i++) {
         logger.info(`test message ${i}`)
       }
       const metrics = logger.getMetrics()
-      
+
       // 采样率50%，sampledLogs统计被采样掉的日志数
       // 应该有30-70个日志被采样（统计学范围）
       expect(metrics.sampledLogs).toBeGreaterThan(20)
@@ -138,7 +138,7 @@ describe('Logger', () => {
 
       logger.info('info message')
       logger.warn('warn message')
-      
+
       const metrics = logger.getMetrics()
       expect(metrics.droppedLogs).toBeGreaterThan(0)
     })
@@ -151,7 +151,7 @@ describe('Logger', () => {
         windowSize: 1000,
         maxLogsPerWindow: 10,
       })
-      
+
       const metrics = logger.getMetrics()
       expect(metrics).toBeDefined()
     })
@@ -195,10 +195,10 @@ describe('Logger', () => {
         enabled: true,
         filters: [(entry) => !entry.message.includes('filtered')],
       })
-      
+
       logger.info('normal message')
       logger.info('filtered message')
-      
+
       const metrics = logger.getMetrics()
       expect(metrics.filteredLogs).toBeGreaterThan(0)
     })
@@ -332,7 +332,7 @@ describe('Logger', () => {
     it('should create child logger with parent name', () => {
       const parentLogger = new Logger({ name: 'parent' })
       const childLogger = parentLogger.child('child')
-      
+
       expect(childLogger).toBeDefined()
     })
 
@@ -352,9 +352,9 @@ describe('Logger', () => {
       logger.info('test log 1')
       logger.info('test log 2')
       logger.warn('test log 3')
-      
+
       const metrics = logger.getMetrics()
-      
+
       expect(metrics.totalLogs).toBeGreaterThanOrEqual(3)
       expect(metrics.timestamp).toBeDefined()
     })
@@ -362,7 +362,7 @@ describe('Logger', () => {
     it('should reset metrics', () => {
       logger.info('test log')
       logger.resetMetrics()
-      
+
       const metrics = logger.getMetrics()
       expect(metrics.totalLogs).toBe(0)
       expect(metrics.sampledLogs).toBe(0)
@@ -385,7 +385,7 @@ describe('Logger', () => {
         expect(event.type).toBe('levelChange')
         done()
       })
-      
+
       logger.setLevel('error')
     })
 
@@ -393,7 +393,7 @@ describe('Logger', () => {
       const handler = jest.fn()
       logger.on('error', handler)
       logger.off('error', handler)
-      
+
       expect(handler).not.toHaveBeenCalled()
     })
 
@@ -427,7 +427,7 @@ describe('Logger', () => {
       })
 
       fileLogger.info('test message')
-      
+
       // 等待文件写入
       await new Promise(resolve => setTimeout(resolve, 300))
 
@@ -443,6 +443,11 @@ describe('Logger', () => {
         },
       })
 
+      // 目录不会在构造函数中创建
+      expect(fs.existsSync(testLogDir)).toBe(false)
+
+      // 首次写入时创建
+      fileLogger.info('test')
       expect(fs.existsSync(testLogDir)).toBe(true)
     })
   })
@@ -467,7 +472,7 @@ describe('Logger', () => {
       })
 
       const consoleSpy = jest.spyOn(console, 'log').mockImplementation()
-      
+
       // 创建一个有循环引用的对象
       const circularObj: any = {
         name: 'test',
@@ -477,17 +482,17 @@ describe('Logger', () => {
       }
       circularObj.self = circularObj
       circularObj.nested.parent = circularObj
-      
+
       // 这不应该抛出错误
       expect(() => {
         testLogger.info('Object with circular reference', circularObj)
       }).not.toThrow()
-      
+
       // 验证日志被写入并包含[Circular]标记
       expect(consoleSpy).toHaveBeenCalled()
       const callOutput = consoleSpy.mock.calls[0]?.[0]?.toString() || ''
       expect(callOutput).toContain('[Circular]')
-      
+
       consoleSpy.mockRestore()
     })
 

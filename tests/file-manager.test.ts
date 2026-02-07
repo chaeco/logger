@@ -30,6 +30,11 @@ describe('FileManager', () => {
         path: testLogDir,
       })
 
+      // 目录不会在构造函数中创建
+      expect(fs.existsSync(testLogDir)).toBe(false)
+
+      // 首次写入时创建
+      fileManager.write('test')
       expect(fs.existsSync(testLogDir)).toBe(true)
     })
 
@@ -45,6 +50,11 @@ describe('FileManager', () => {
         filename: 'custom',
       })
 
+      // 目录不会在构造函数中创建
+      expect(fs.existsSync(testLogDir)).toBe(false)
+
+      // 首次写入时创建
+      fileManager.write('test')
       expect(fs.existsSync(testLogDir)).toBe(true)
     })
   })
@@ -78,7 +88,7 @@ describe('FileManager', () => {
       })
 
       await fileManager.write('test message')
-      
+
       // disabled 时不写入文件，但目录可能已创建
       // 检查没有文件被写入
       if (fs.existsSync(testLogDir)) {

@@ -74,6 +74,9 @@ export class FileManager {
   private flushTimer?: NodeJS.Timeout
   private isWriting: boolean = false
 
+  // 初始化错误信息
+  private initError?: Error
+
   constructor(options: FileOptions = {}, asyncOptions?: AsyncWriteOptions) {
     this.options = {
       enabled: options.enabled ?? true,
@@ -100,15 +103,37 @@ export class FileManager {
       this.startFlushTimer()
     }
 
-    if (isNodeEnvironment) {
-      this.ensureLogDirectory()
-      this.initializeCurrentFile()
-    } else if (isBrowserEnvironment) {
-      this.initializeIndexedDB().catch((error) => {
-        console.warn('@chaeco/logger: Failed to initialize IndexedDB storage:', error)
-      })
-    } else {
-      console.warn('@chaeco/logger: FileManager 在当前环境中不可用。请在浏览器或 Node.js 中使用。')
+    // 不在构造函数中初始化，而是在首次写入时自动初始化
+  }
+
+  /**
+   * 初始化文件管理器
+   * @remarks
+   * 创建日志目录并初始化当前日志文件。
+   * 通常不需要手动调用此方法，首次写入日志时会自动初始化。
+   * 仅在需要提前确保目录存在时手动调用。
+   */
+  public init(): void {
+    if (this.isInitialized) {
+      return
+    }
+
+    try {
+      if (isNodeEnvironment) {
+        this.ensureLogDirectory()
+        this.initializeCurrentFile()
+        this.isInitialized = true
+      } else if (isBrowserEnvironment) {
+        this.initializeIndexedDB().catch((error) => {
+          this.initError = error instanceof Error ? error : new Error(String(error))
+          console.warn('@chaeco/logger: Failed to initialize IndexedDB storage:', error)
+        })
+      } else {
+        console.warn('@chaeco/logger: FileManager 在当前环境中不可用。请在浏览器或 Node.js 中使用。')
+      }
+    } catch (error) {
+      this.initError = error instanceof Error ? error : new Error(String(error))
+      console.warn('@chaeco/logger: Failed to initialize FileManager:', error)
     }
   }
 
@@ -138,8 +163,15 @@ export class FileManager {
       console.warn('@chaeco/logger: fs module not available')
       return
     }
-    if (!fs.existsSync(this.options.path)) {
-      fs.mkdirSync(this.options.path, { recursive: true })
+    try {
+      if (!fs.existsSync(this.options.path)) {
+        fs.mkdirSync(this.options.path, { recursive: true, mode: this.options.dirMode })
+      }
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error))
+      this.initError = err
+      console.warn(`@chaeco/logger: Failed to create log directory "${this.options.path}":`, err.message)
+      // 不抛出错误，让日志器继续运行（只是无法写入文件）
     }
   }
 
@@ -148,22 +180,28 @@ export class FileManager {
       console.warn('@chaeco/logger: fs or path module not available')
       return
     }
-    const today = dayjs().format('YYYY-MM-DD')
-    this.currentFilePath = path.join(this.options.path, `${this.options.filename}-${today}.log`)
-    this.fileIndex = 0
+    try {
+      const today = dayjs().format('YYYY-MM-DD')
+      this.currentFilePath = path.join(this.options.path, `${this.options.filename}-${today}.log`)
+      this.fileIndex = 0
 
-    // 检查是否需要创建新的文件索引
-    while (fs.existsSync(this.getIndexedFilePath())) {
-      this.fileIndex++
-    }
+      // 检查是否需要创建新的文件索引
+      while (fs.existsSync(this.getIndexedFilePath())) {
+        this.fileIndex++
+      }
 
-    if (this.fileIndex > 0) {
-      this.currentFilePath = this.getIndexedFilePath()
-    }
+      if (this.fileIndex > 0) {
+        this.currentFilePath = this.getIndexedFilePath()
+      }
 
-    // 获取当前文件大小
-    if (fs.existsSync(this.currentFilePath)) {
-      this.currentFileSize = fs.statSync(this.currentFilePath).size
+      // 获取当前文件大小
+      if (fs.existsSync(this.currentFilePath)) {
+        this.currentFileSize = fs.statSync(this.currentFilePath).size
+      }
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error))
+      this.initError = err
+      console.warn('@chaeco/logger: Failed to initialize current file:', err.message)
     }
   }
 
@@ -325,6 +363,16 @@ export class FileManager {
 
   async write(message: string): Promise<void> {
     if (!this.options.enabled) return
+
+    // 首次写入时自动初始化
+    if (!this.isInitialized && !this.initError) {
+      this.init()
+    }
+
+    // 如果初始化失败，静默返回（日志只输出到控制台）
+    if (this.initError) {
+      return
+    }
 
     // 浏览器环境：使用 IndexedDB
     if (isBrowserEnvironment && this.indexedDBStorage && this.isInitialized) {

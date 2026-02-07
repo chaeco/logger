@@ -18,7 +18,7 @@ import dayjs from 'dayjs'
  *
  * @example
  * ```typescript
- * // 使用默认实例
+ * // 使用默认实例（首次写入时自动初始化）
  * import { logger } from '@chaeco/logger'
  * logger.info('这是一条信息日志')
  *
@@ -42,21 +42,21 @@ export class Logger {
   private consoleEnabled: boolean
   private consoleColors: boolean
   private consoleTimestamp: boolean
-  
+
   // 环境信息
   private isNodeEnv: boolean = isNodeEnvironment
   private isBrowserEnv: boolean = isBrowserEnvironment
-  
+
   // 事件处理
   private eventHandlers: Map<LoggerEventType, LoggerEventHandler[]> = new Map()
-  
+
   // 采样配置
   private sampling: Required<SamplingOptions> = {
     enabled: false,
     rate: 1,
     rateByLevel: { debug: 1, info: 1, warn: 1, error: 1, silent: 1 }
   }
-  
+
   // 限流配置
   private rateLimit: Required<RateLimitOptions> = {
     enabled: false,
@@ -64,7 +64,7 @@ export class Logger {
     maxLogsPerWindow: 1000,
     warnOnLimitExceeded: true
   }
-  
+
   // 限流追踪
   private rateLimitHistory: { timestamp: number; count: number }[] = []
 
@@ -87,14 +87,14 @@ export class Logger {
     json: boolean
     jsonIndent: number
   } = {
-    enabled: false,
-    timestampFormat: 'YYYY-MM-DD HH:mm:ss.SSS',
-    formatter: undefined,
-    includeStack: true,
-    includeName: true,
-    json: false,
-    jsonIndent: 0,
-  }
+      enabled: false,
+      timestampFormat: 'YYYY-MM-DD HH:mm:ss.SSS',
+      formatter: undefined,
+      includeStack: true,
+      includeName: true,
+      json: false,
+      jsonIndent: 0,
+    }
 
   // 错误处理配置
   private errorHandling: ErrorHandlingOptions & {
@@ -103,12 +103,12 @@ export class Logger {
     retryDelay: number
     fallbackToConsole: boolean
   } = {
-    silent: true,
-    onError: undefined,
-    retryCount: 3,
-    retryDelay: 100,
-    fallbackToConsole: true,
-  }
+      silent: true,
+      onError: undefined,
+      retryCount: 3,
+      retryDelay: 100,
+      fallbackToConsole: true,
+    }
 
   // 性能指标
   private metrics: PerformanceMetrics = {
@@ -154,7 +154,7 @@ export class Logger {
     this.consoleEnabled = options.console?.enabled ?? true
     this.consoleColors = options.console?.colors ?? (this.isNodeEnv ? true : false)
     this.consoleTimestamp = options.console?.timestamp ?? true
-    
+
     // 采样配置
     if (options.sampling) {
       this.sampling = {
@@ -169,7 +169,7 @@ export class Logger {
         }
       }
     }
-    
+
     // 限流配置
     if (options.rateLimit) {
       this.rateLimit = {
@@ -179,7 +179,7 @@ export class Logger {
         warnOnLimitExceeded: options.rateLimit.warnOnLimitExceeded ?? true,
       }
     }
-    
+
     // 日志过滤配置
     if (options.filter) {
       this.filter = {
@@ -211,6 +211,26 @@ export class Logger {
         retryDelay: options.errorHandling.retryDelay ?? 100,
         fallbackToConsole: options.errorHandling.fallbackToConsole ?? true,
       }
+    }
+  }
+
+  /**
+   * 初始化日志器
+   * @remarks
+   * 通常不需要手动调用此方法，首次写入日志时会自动初始化。
+   * 仅在需要提前确保日志目录存在时手动调用（例如在应用启动时）。
+   * 
+   * @example
+   * ```typescript
+   * import { logger } from '@chaeco/logger'
+   * 
+   * // 可选：提前初始化（首次写入时也会自动初始化）
+   * logger.init()
+   * ```
+   */
+  public init(): void {
+    if (this.fileManager) {
+      this.fileManager.init()
     }
   }
 
@@ -681,19 +701,19 @@ export class Logger {
     }
 
     const startTime = performance.now()
-    
+
     if (!this.shouldLog(level)) return
-    
+
     // 记录总日志数（包括被采样和限流的）
     this.metrics.totalLogs++
-    
+
     // 采样检查
     if (!this.shouldSample(level)) {
       this.metrics.sampledLogs++
       this.metrics.droppedLogs++
       return
     }
-    
+
     // 限流检查
     if (!this.checkRateLimit()) {
       this.metrics.droppedLogs++
@@ -710,7 +730,7 @@ export class Logger {
 
     this.writeToConsole(entry)
     this.writeToFile(entry)
-    
+
     // 记录处理时间
     const processingTime = performance.now() - startTime
     this.recordProcessingTime(processingTime)

@@ -20,7 +20,16 @@ export declare class FileManager {
     private writeQueue;
     private flushTimer?;
     private isWriting;
+    private initError?;
     constructor(options?: FileOptions, asyncOptions?: AsyncWriteOptions);
+    /**
+     * 初始化文件管理器
+     * @remarks
+     * 创建日志目录并初始化当前日志文件。
+     * 通常不需要手动调用此方法，首次写入日志时会自动初始化。
+     * 仅在需要提前确保目录存在时手动调用。
+     */
+    init(): void;
     private initializeIndexedDB;
     private ensureLogDirectory;
     private initializeCurrentFile;

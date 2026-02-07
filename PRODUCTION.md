@@ -13,6 +13,7 @@
 - [ ] 启用日志压缩（节省磁盘空间）
 - [ ] 配置限流防止日志洪泛
 - [ ] 设置错误监控和告警
+- [ ] 确保日志目录路径有写入权限
 
 ### 推荐配置
 
@@ -29,6 +30,7 @@
 ```typescript
 import { Logger } from '@chaeco/logger'
 
+// 首次写入日志时自动初始化，无需手动配置
 const logger = new Logger({
   level: 'info',
   name: 'production-app',

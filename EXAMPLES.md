@@ -59,7 +59,30 @@ const logger = new Logger({
     maxAge: 30,        // 保留30天
   },
 })
-\`\`\`
+// 直接使用，首次写入时自动创建目录
+logger.info('应用已启动')
+```
+
+### Electron 应用中使用
+
+```typescript
+import { Logger } from '@chaeco/logger'
+import path from 'path'
+import { app } from 'electron'
+
+const logger = new Logger({
+  name: 'electron-app',
+  file: {
+    enabled: true,
+    // 使用应用数据目录
+    path: path.join(app.getPath('userData'), 'logs'),
+    maxSize: '10m',
+    maxFiles: 30,
+  },
+})
+
+// 直接使用，无需手动初始化
+logger.info('Electron 应用已启动')\`\`\`
 
 ## 高级特性
 
