@@ -27,6 +27,20 @@ If the user mentions "too many logs," "performance issues," or "log flooding":
 - Suggest using `RateLimitOptions` to prevent floods.
 - Provide examples of `logger.configureSampling({ rate: 0.1 })`.
 
+### 4. Typing and Interfaces
+- Always use specific types from `@chaeco/logger` for function signatures (e.g., `LogEntry`, `LoggerOptions`, `LogLevel`).
+- Prefer `LogEntry` when working with custom filters or formatters.
+- Avoid `any` for metadata; the logger handles complex objects safely.
+
+### 5. Environment Constraints
+- Node.js: Fully supports file rotation, compression, and async batching.
+- Browser: Redirects all logs to the console; file-related options are safely ignored without crashing.
+
+### 6. Event Hooks
+- Suggest using `logger.on('levelChange', ...)` for runtime monitoring and dashboard updates.
+- Suggest using `logger.on('rateLimitExceeded', ...)` to detect log floods in internal logic.
+- Suggest using `logger.on('fileWriteError', ...)` for alerting on disk or permission issues.
+
 ## Examples and Snippets
 
 ### Initializing Logger

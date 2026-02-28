@@ -25,7 +25,7 @@ A feature-rich, high-performance, cross-platform logging library for Node.js and
 ## Installation
 
 ```bash
-npm install @chaeco/logger
+npm install github:chaeco/logger
 ```
 
 ## Quick Start
