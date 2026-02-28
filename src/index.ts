@@ -8,21 +8,34 @@
  * @packageDocumentation
  */
 
-export { Logger, logger } from './logger'
-export type { 
-  LogLevel, 
-  LoggerOptions, 
-  FileOptions, 
-  ConsoleOptions, 
+import { Logger } from './core/logger'
+export { Logger }
+
+/**
+ * 默认 Logger 实例（name: 'app'，level: 'info'，写入 ./logs）
+ */
+export const logger = new Logger({
+  name: 'app',
+  file: { enabled: true, path: './logs', maxSize: 10 * 1024 * 1024, maxFiles: 30 },
+  console: { enabled: true, colors: true, timestamp: true },
+})
+
+export type {
+  LogLevel,
+  LoggerOptions,
+  FileOptions,
+  ConsoleOptions,
   LogEntry,
   SamplingOptions,
   RateLimitOptions,
   LoggerEventType,
   LoggerEventHandler,
   LoggerEvent,
-  EnvironmentInfo,
   LoggerFilter,
   FilterOptions,
+  FormatOptions,
+  AsyncWriteOptions,
+  ErrorHandlingOptions,
   PerformanceMetrics
-} from './types'
-export { isNodeEnvironment, isBrowserEnvironment, currentEnvironment, detectEnvironment } from './environment'
+} from './core/types'
+export { isNodeEnvironment, isBrowserEnvironment, currentEnvironment, detectEnvironment } from './utils/environment'

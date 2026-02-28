@@ -1,4 +1,4 @@
-import { FileManager } from '../src/file-manager'
+import { FileManager } from '../src/file/file-manager'
 import * as fs from 'fs'
 import * as path from 'path'
 
@@ -115,7 +115,7 @@ describe('FileManager', () => {
         enabled: true,
         path: testLogDir,
         filename: 'rotate-test',
-        maxSize: '1kb',
+        maxSize: 1024,
       })
 
       // 写入足够多的数据触发轮转
@@ -134,7 +134,7 @@ describe('FileManager', () => {
         path: testLogDir,
         filename: 'cleanup-test',
         maxFiles: 5,
-        maxSize: '100b', // 更小的文件大小，触发更多轮转
+        maxSize: 100, // 更小的文件大小，触发更多轮转
       })
 
       // 创建多个小文件，每个文件超过100字节会触发轮转
@@ -237,19 +237,19 @@ describe('FileManager', () => {
     })
   })
 
-  describe('Size Parsing', () => {
-    it('should parse size units correctly', async () => {
+  describe('Size Configuration', () => {
+    it('should accept numeric byte values for maxSize', async () => {
       const testCases = [
-        { maxSize: '1kb', bytes: 1024 },
-        { maxSize: '1mb', bytes: 1024 * 1024 },
-        { maxSize: '100b', bytes: 100 },
+        { maxSize: 1024, label: '1kb' },
+        { maxSize: 1024 * 1024, label: '1mb' },
+        { maxSize: 100, label: '100b' },
       ]
 
       for (const testCase of testCases) {
         const fm = new FileManager({
           enabled: true,
           path: testLogDir,
-          filename: `size-${testCase.maxSize}`,
+          filename: `size-${testCase.label}`,
           maxSize: testCase.maxSize,
         })
 

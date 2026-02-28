@@ -19,7 +19,7 @@ const logger = new Logger({
   file: {
     enabled: true,
     path: './logs',
-    maxSize: '10m',
+    maxSize: 10 * 1024 * 1024,
     maxFiles: 10,
   },
 })

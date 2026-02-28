@@ -1,4 +1,4 @@
-import { ColorUtils } from '../src/color-utils'
+import { ColorUtils } from '../src/utils/color-utils'
 
 describe('ColorUtils', () => {
   it('should return level colors', () => {

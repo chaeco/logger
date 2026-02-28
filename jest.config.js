@@ -16,10 +16,9 @@ module.exports = {
   moduleFileExtensions: ['ts', 'js', 'json', 'node'],
   verbose: true,
   transformIgnorePatterns: [
-    'node_modules/(?!(chalk|@chaeco/indexed-db-storage)/)',
+    'node_modules/(?!(chalk)/)',
   ],
   moduleNameMapper: {
     '^chalk$': '<rootDir>/tests/__mocks__/chalk.ts',
-    '^@chaeco/indexed-db-storage$': '<rootDir>/tests/__mocks__/indexed-db-storage.ts',
   },
 }

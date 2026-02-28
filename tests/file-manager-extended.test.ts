@@ -3,7 +3,7 @@
  * 提升覆盖率的额外测试
  */
 
-import { FileManager } from '../src/file-manager'
+import { FileManager } from '../src/file/file-manager'
 import * as fs from 'fs'
 import * as path from 'path'
 
@@ -49,38 +49,6 @@ describe('FileManager Extended Tests', () => {
     })
   })
 
-  describe('File Modes', () => {
-    it('should respect custom file mode', () => {
-      const fm = new FileManager({
-        enabled: true,
-        path: testLogDir,
-        filename: 'mode-test',
-        fileMode: 0o600,
-      })
-
-      expect(fm).toBeDefined()
-    })
-
-    it('should respect custom directory mode', () => {
-      const customDir = path.join(testLogDir, 'custom-mode')
-      const fm = new FileManager({
-        enabled: true,
-        path: customDir,
-        filename: 'dir-mode-test',
-        dirMode: 0o700,
-      })
-
-      expect(fm).toBeDefined()
-
-      // 目录不会在构造函数中创建
-      expect(fs.existsSync(customDir)).toBe(false)
-
-      // 首次写入时创建
-      fm.write('test')
-      expect(fs.existsSync(customDir)).toBe(true)
-    })
-  })
-
   describe('Compression', () => {
     it('should support compression option', async () => {
       const fm = new FileManager({
@@ -89,7 +57,7 @@ describe('FileManager Extended Tests', () => {
         filename: 'compress-test',
         compress: true,
         maxFiles: 3,
-        maxSize: '100b',
+        maxSize: 100,
       })
 
       // 写入足够的数据触发轮转
@@ -192,33 +160,17 @@ describe('FileManager Extended Tests', () => {
   })
 
   describe('Write Mode', () => {
-    it('should support async write mode', async () => {
+    it('should write to file', async () => {
       const fm = new FileManager({
         enabled: true,
         path: testLogDir,
-        filename: 'async-mode',
-        writeMode: 'async',
+        filename: 'write-mode-test',
       })
 
-      await fm.write('async test message')
+      await fm.write('test message')
       await fm.close()
 
-      const files = fs.readdirSync(testLogDir).filter(f => f.includes('async-mode'))
-      expect(files.length).toBeGreaterThan(0)
-    })
-
-    it('should support sync write mode', async () => {
-      const fm = new FileManager({
-        enabled: true,
-        path: testLogDir,
-        filename: 'sync-mode',
-        writeMode: 'sync',
-      })
-
-      await fm.write('sync test message')
-      await fm.close()
-
-      const files = fs.readdirSync(testLogDir).filter(f => f.includes('sync-mode'))
+      const files = fs.readdirSync(testLogDir).filter(f => f.includes('write-mode-test'))
       expect(files.length).toBeGreaterThan(0)
     })
   })
@@ -247,7 +199,7 @@ describe('FileManager Extended Tests', () => {
         enabled: true,
         path: testLogDir,
         filename: 'multi-rotate',
-        maxSize: '50b',
+        maxSize: 50,
         maxFiles: 5,
       })
 

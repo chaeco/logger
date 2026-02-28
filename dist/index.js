@@ -10,10 +10,17 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.detectEnvironment = exports.currentEnvironment = exports.isBrowserEnvironment = exports.isNodeEnvironment = exports.logger = exports.Logger = void 0;
-var logger_1 = require("./logger");
+const logger_1 = require("./core/logger");
 Object.defineProperty(exports, "Logger", { enumerable: true, get: function () { return logger_1.Logger; } });
-Object.defineProperty(exports, "logger", { enumerable: true, get: function () { return logger_1.logger; } });
-var environment_1 = require("./environment");
+/**
+ * 默认 Logger 实例（name: 'app'，level: 'info'，写入 ./logs）
+ */
+exports.logger = new logger_1.Logger({
+    name: 'app',
+    file: { enabled: true, path: './logs', maxSize: '10m', maxFiles: 30 },
+    console: { enabled: true, colors: true, timestamp: true },
+});
+var environment_1 = require("./utils/environment");
 Object.defineProperty(exports, "isNodeEnvironment", { enumerable: true, get: function () { return environment_1.isNodeEnvironment; } });
 Object.defineProperty(exports, "isBrowserEnvironment", { enumerable: true, get: function () { return environment_1.isBrowserEnvironment; } });
 Object.defineProperty(exports, "currentEnvironment", { enumerable: true, get: function () { return environment_1.currentEnvironment; } });

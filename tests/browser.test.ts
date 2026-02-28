@@ -1,49 +1,18 @@
 /**
  * 浏览器环境兼容性测试
- * 测试 IndexedDB 存储和浏览器特定功能
  */
 
-import { Logger } from '../src/logger'
+import { Logger } from '../src/core/logger'
 
 describe('Browser Compatibility Tests', () => {
-  // 模拟浏览器环境
-  const mockIndexedDB = () => {
-    const stores: Record<string, any[]> = {}
-
-    return {
-      open: jest.fn((name: string) => {
-        return Promise.resolve({
-          objectStoreNames: { contains: () => false },
-          createObjectStore: jest.fn(),
-          transaction: jest.fn(() => ({
-            objectStore: jest.fn(() => ({
-              add: jest.fn((value: any) => {
-                if (!stores[name]) stores[name] = []
-                stores[name].push(value)
-                return Promise.resolve()
-              }),
-              getAll: jest.fn(() => Promise.resolve(stores[name] || [])),
-              clear: jest.fn(() => {
-                stores[name] = []
-                return Promise.resolve()
-              }),
-            })),
-          })),
-        })
-      }),
-      deleteDatabase: jest.fn(),
-      _stores: stores,
-    }
-  }
-
   describe('Environment Detection', () => {
     it('should detect browser environment correctly', () => {
       // 模拟浏览器全局对象
       const originalWindow = global.window
       const originalProcess = global.process
 
-      ;(global as any).window = {}
-      ;(global as any).process = undefined
+        ; (global as any).window = {}
+        ; (global as any).process = undefined
 
       const logger = new Logger({
         level: 'info',
@@ -65,45 +34,6 @@ describe('Browser Compatibility Tests', () => {
 
       expect(logger).toBeDefined()
       expect(process).toBeDefined()
-    })
-  })
-
-  describe('IndexedDB Storage', () => {
-    let mockDB: any
-
-    beforeEach(() => {
-      mockDB = mockIndexedDB()
-      ;(global as any).indexedDB = mockDB
-    })
-
-    afterEach(() => {
-      delete (global as any).indexedDB
-    })
-
-    it('should initialize logger with IndexedDB in browser', () => {
-      const logger = new Logger({
-        level: 'info',
-        name: 'browser-logger',
-        console: { enabled: true },
-        file: { enabled: false },
-      })
-
-      expect(logger).toBeDefined()
-    })
-
-    it('should handle browser-specific log levels', () => {
-      const logger = new Logger({
-        level: 'debug',
-        console: { enabled: false },
-      })
-
-      logger.debug('Debug message')
-      logger.info('Info message')
-      logger.warn('Warning message')
-      logger.error('Error message')
-
-      const metrics = logger.getMetrics()
-      expect(metrics.totalLogs).toBe(4)
     })
   })
 
@@ -131,11 +61,11 @@ describe('Browser Compatibility Tests', () => {
       logger.error('Error message')
 
       // \u81f3\u5c11\u5e94\u8be5\u8c03\u7528\u4e86log\u65b9\u6cd5
-      const totalCalls = consoleSpy.debug.mock.calls.length + 
-                         consoleSpy.log.mock.calls.length +
-                         consoleSpy.warn.mock.calls.length +
-                         consoleSpy.error.mock.calls.length
-      
+      const totalCalls = consoleSpy.debug.mock.calls.length +
+        consoleSpy.log.mock.calls.length +
+        consoleSpy.warn.mock.calls.length +
+        consoleSpy.error.mock.calls.length
+
       expect(totalCalls).toBeGreaterThan(0)
 
       global.console = originalConsole
@@ -165,36 +95,6 @@ describe('Browser Compatibility Tests', () => {
       expect(consoleSpy.log).toHaveBeenCalled()
 
       global.console = originalConsole
-    })
-  })
-
-  describe('Storage Limits', () => {
-    it('should handle storage quota exceeded error', async () => {
-      const mockDB = mockIndexedDB()
-      ;(global as any).indexedDB = mockDB
-
-      const logger = new Logger({
-        level: 'info',
-        name: 'quota-test',
-        console: { enabled: false },
-      })
-
-      let errorCaught = false
-
-      try {
-        // 尝试写入大量数据
-        for (let i = 0; i < 10000; i++) {
-          logger.info(`Large message ${i}`, { data: 'x'.repeat(1000) })
-        }
-      } catch (error) {
-        errorCaught = true
-      }
-
-      // 在浏览器中可能会抛出 QuotaExceededError
-      // 但在测试环境中不会
-      expect(errorCaught).toBe(false)
-
-      delete (global as any).indexedDB
     })
   })
 
@@ -407,9 +307,9 @@ describe('Browser Compatibility Tests', () => {
     it('should work in service worker context', () => {
       // 模拟 Service Worker 环境
       const originalSelf = global.self
-      ;(global as any).self = {
-        addEventListener: jest.fn(),
-      }
+        ; (global as any).self = {
+          addEventListener: jest.fn(),
+        }
 
       const logger = new Logger({
         level: 'info',

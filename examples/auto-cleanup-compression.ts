@@ -12,7 +12,7 @@ const loggerWithAutoCleanup = new Logger({
   file: {
     enabled: true,
     path: './logs',
-    maxSize: '10mb',
+    maxSize: 10 * 1024 * 1024,
     maxFiles: 50,
     filename: 'app-cleanup',
     maxAge: 7, // 自动删除 7 天前的日志文件
@@ -26,7 +26,7 @@ const loggerWithCompression = new Logger({
   file: {
     enabled: true,
     path: './logs',
-    maxSize: '10mb',
+    maxSize: 10 * 1024 * 1024,
     maxFiles: 100,
     filename: 'app-compressed',
     compress: true, // 启用 gzip 压缩
@@ -40,7 +40,7 @@ const loggerWithBoth = new Logger({
   file: {
     enabled: true,
     path: './logs',
-    maxSize: '5mb',
+    maxSize: 5 * 1024 * 1024,
     maxFiles: 30,
     filename: 'app-full',
     maxAge: 30, // 保留 30 天
@@ -55,7 +55,7 @@ const loggerShortTerm = new Logger({
   file: {
     enabled: true,
     path: './logs/temp',
-    maxSize: '1mb',
+    maxSize: 1 * 1024 * 1024,
     maxFiles: 10,
     filename: 'temp',
     maxAge: 3, // 仅保留 3 天

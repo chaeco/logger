@@ -3,7 +3,7 @@
  * 测试各种配置下的性能表现
  */
 
-import { Logger } from '../src/logger'
+import { Logger } from '../src/core/logger'
 import * as fs from 'fs'
 
 describe('Performance Benchmarks', () => {
@@ -47,7 +47,6 @@ describe('Performance Benchmarks', () => {
           enabled: true,
           path: testLogDir,
           filename: 'sync-perf',
-          writeMode: 'sync',
         },
       })
       loggers.push(logger)
@@ -79,7 +78,6 @@ describe('Performance Benchmarks', () => {
           enabled: true,
           path: testLogDir,
           filename: 'async-perf',
-          writeMode: 'async',
         },
         async: {
           enabled: true,

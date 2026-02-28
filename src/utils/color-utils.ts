@@ -24,7 +24,7 @@ export class ColorUtils {
 
   static colorizeLevel(level: string): string {
     const color = this.getLevelColor(level)
-    return color(level.toUpperCase().padEnd(5))
+    return color(level.toUpperCase().padEnd(6))
   }
 
   static colorizeTimestamp(timestamp: string): string {

@@ -19,7 +19,6 @@ const asyncLogger = new Logger({
     enabled: true,
     path: './logs',
     filename: 'async-test',
-    writeMode: 'async',
   },
   async: {
     enabled: true,
@@ -135,12 +134,12 @@ const silentLogger = new Logger({
     enabled: true,
     path: '/invalid/path/that/does/not/exist', // 故意使用无效路径
     filename: 'test',
+    retryCount: 3,             // 重试3次
+    retryDelay: 100,           // 每次重试延迟100ms
   },
   errorHandling: {
     silent: true,              // 静默错误，不抛出异常
     fallbackToConsole: true,   // 失败时降级到控制台
-    retryCount: 3,             // 重试3次
-    retryDelay: 100,           // 每次重试延迟100ms
   },
 })
 
@@ -158,14 +157,19 @@ const customErrorLogger = new Logger({
     path: './logs',
     filename: 'error-test',
   },
+  file: {
+    enabled: true,
+    path: './logs',
+    filename: 'error-test',
+    retryCount: 3,
+    retryDelay: 50,
+  },
   errorHandling: {
     silent: true,
     onError: (error: Error, context: string) => {
       errorCount++
       console.log(`   → 捕获到错误 #${errorCount}:`, error.message, `(上下文: ${context})`)
     },
-    retryCount: 3,
-    retryDelay: 50,
   },
 })
 
@@ -203,11 +207,12 @@ const productionLogger = new Logger({
     enabled: true,
     path: './logs',
     filename: 'production',
-    maxSize: '10mb',
+    maxSize: 10 * 1024 * 1024,
     maxFiles: 50,
     maxAge: 30,
     compress: true,
-    writeMode: 'async',
+    retryCount: 3,
+    retryDelay: 100,
   },
   async: {
     enabled: true,
@@ -223,8 +228,6 @@ const productionLogger = new Logger({
   },
   errorHandling: {
     silent: true,
-    retryCount: 3,
-    retryDelay: 100,
     fallbackToConsole: true,
     onError: (error, context) => {
       // 发送到监控系统
@@ -272,7 +275,6 @@ const syncLogger = new Logger({
     enabled: true,
     path: './logs',
     filename: 'sync-perf',
-    writeMode: 'sync',
   },
 })
 
@@ -291,7 +293,6 @@ const asyncPerfLogger = new Logger({
     enabled: true,
     path: './logs',
     filename: 'async-perf',
-    writeMode: 'async',
   },
   async: {
     enabled: true,

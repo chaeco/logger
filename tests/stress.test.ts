@@ -3,7 +3,7 @@
  * 测试高并发、大数据量场景下的稳定性
  */
 
-import { Logger } from '../src/logger'
+import { Logger } from '../src/core/logger'
 import * as fs from 'fs'
 
 describe('Stress Tests', () => {
@@ -320,7 +320,7 @@ describe('Stress Tests', () => {
           enabled: true,
           path: testLogDir,
           filename: 'rotation-stress',
-          maxSize: '20kb', // \u8c03\u6574\u4e3a\u66f4\u5927\u7684\u6587\u4ef6\u4ee5\u51cf\u5c11\u8f6c\u8f6c\u6b21\u6570
+          maxSize: 20 * 1024, // \u8c03\u6574\u4e3a\u66f4\u5927\u7684\u6587\u4ef6\u4ee5\u51cf\u5c11\u8f6c\u8f6c\u6b21\u6570
           maxFiles: 100,  // \u589e\u52a0\u6700\u5927\u6587\u4ef6\u6570
         },
       })
@@ -353,10 +353,10 @@ describe('Stress Tests', () => {
           enabled: true,
           path: testLogDir,
           filename: 'recovery-test',
+          retryCount: 3,
         },
         errorHandling: {
           silent: true,
-          retryCount: 3,
           fallbackToConsole: true,
         },
       })

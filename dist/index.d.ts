@@ -7,7 +7,12 @@
  *
  * @packageDocumentation
  */
-export { Logger, logger } from './logger';
-export type { LogLevel, LoggerOptions, FileOptions, ConsoleOptions, LogEntry, SamplingOptions, RateLimitOptions, LoggerEventType, LoggerEventHandler, LoggerEvent, EnvironmentInfo, LoggerFilter, FilterOptions, PerformanceMetrics } from './types';
-export { isNodeEnvironment, isBrowserEnvironment, currentEnvironment, detectEnvironment } from './environment';
+import { Logger } from './core/logger';
+export { Logger };
+/**
+ * 默认 Logger 实例（name: 'app'，level: 'info'，写入 ./logs）
+ */
+export declare const logger: Logger;
+export type { LogLevel, LoggerOptions, FileOptions, ConsoleOptions, LogEntry, SamplingOptions, RateLimitOptions, LoggerEventType, LoggerEventHandler, LoggerEvent, EnvironmentInfo, LoggerFilter, FilterOptions, PerformanceMetrics } from './core/types';
+export { isNodeEnvironment, isBrowserEnvironment, currentEnvironment, detectEnvironment } from './utils/environment';
 //# sourceMappingURL=index.d.ts.map

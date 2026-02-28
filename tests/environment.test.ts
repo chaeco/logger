@@ -1,4 +1,4 @@
-import { isNodeEnvironment, isBrowserEnvironment, currentEnvironment } from '../src/environment'
+import { isNodeEnvironment, isBrowserEnvironment, currentEnvironment } from '../src/utils/environment'
 
 describe('Environment Detection', () => {
   it('should detect Node.js environment', () => {

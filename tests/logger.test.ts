@@ -1,5 +1,5 @@
-import { Logger } from '../src/logger'
-import { LogLevel } from '../src/types'
+import { Logger } from '../src/core/logger'
+import { LogLevel } from '../src/core/types'
 import * as fs from 'fs'
 
 describe('Logger', () => {

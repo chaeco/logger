@@ -80,6 +80,8 @@ class FileManager {
             writeMode: options.writeMode ?? 'sync',
             fileMode: options.fileMode ?? 0o644,
             dirMode: options.dirMode ?? 0o755,
+            retryCount: options.retryCount ?? 3,
+            retryDelay: options.retryDelay ?? 100,
         };
         // 初始化异步写入配置
         if (asyncOptions?.enabled && environment_1.isNodeEnvironment) {
@@ -169,19 +171,27 @@ class FileManager {
             return;
         }
         try {
-            const today = (0, dayjs_1.default)().format('YYYY-MM-DD');
-            this.currentFilePath = path.join(this.options.path, `${this.options.filename}-${today}.log`);
             this.fileIndex = 0;
-            // 检查是否需要创建新的文件索引
+            // 找到今天最后一个已存在的文件索引
             while (fs.existsSync(this.getIndexedFilePath())) {
                 this.fileIndex++;
             }
             if (this.fileIndex > 0) {
+                // 回退到最后一个已存在的文件
+                this.fileIndex--;
                 this.currentFilePath = this.getIndexedFilePath();
-            }
-            // 获取当前文件大小
-            if (fs.existsSync(this.currentFilePath)) {
                 this.currentFileSize = fs.statSync(this.currentFilePath).size;
+                // 如果该文件已超过大小限制，轮转到新文件
+                if (this.shouldRotateFile()) {
+                    this.fileIndex++;
+                    this.currentFilePath = this.getIndexedFilePath();
+                    this.currentFileSize = 0;
+                }
+            }
+            else {
+                // 今天还没有日志文件，从索引 0 开始
+                this.currentFilePath = this.getIndexedFilePath();
+                this.currentFileSize = 0;
             }
         }
         catch (error) {
@@ -201,7 +211,7 @@ class FileManager {
             : path.join(this.options.path, `${baseName}.${this.fileIndex}.log`);
     }
     parseMaxSize(size) {
-        const match = size.toLowerCase().match(/^(\d+(?:\.\d+)?)\s*(b|kb|mb|gb)?$/);
+        const match = size.toLowerCase().match(/^(\d+(?:\.\d+)?)\s*(b|kb|m|mb|gb|g)?$/);
         if (!match || !match[1])
             return 10 * 1024 * 1024; // 默认 10MB
         const value = parseFloat(match[1]);
@@ -210,9 +220,9 @@ class FileManager {
             return value * 1;
         if (unit === 'kb')
             return value * 1024;
-        if (unit === 'gb')
+        if (unit === 'gb' || unit === 'g')
             return value * 1024 * 1024 * 1024;
-        return value * 1024 * 1024; // 默认 mb
+        return value * 1024 * 1024; // 支持 'm' 和 'mb'
     }
     shouldRotateFile() {
         const maxSize = this.parseMaxSize(this.options.maxSize);
@@ -328,12 +338,9 @@ class FileManager {
             return;
         }
         const today = (0, dayjs_1.default)().format('YYYY-MM-DD');
-        const currentFileDate = path
-            .basename(this.currentFilePath)
-            .split('-')
-            .slice(1, 4)
-            .join('-')
-            .split('.')[0];
+        // 使用正则匹配日期，避免 filename 含连字符时解析出错
+        const dateMatch = path.basename(this.currentFilePath).match(/(\d{4}-\d{2}-\d{2})/);
+        const currentFileDate = dateMatch ? dateMatch[1] : null;
         if (currentFileDate !== today) {
             this.initializeCurrentFile();
         }
@@ -452,30 +459,32 @@ class FileManager {
      * 带重试机制的文件写入
      * @private
      */
-    async writeToFileWithRetry(message, retryCount = 3) {
+    async writeToFileWithRetry(message) {
         this.checkDateRotation();
         if (this.shouldRotateFile()) {
             this.rotateFile();
         }
         const content = message + '\n';
-        await this.appendToFileWithRetry(content, retryCount);
+        await this.appendToFileWithRetry(content);
         this.currentFileSize += Buffer.byteLength(content, 'utf8');
     }
     /**
      * 带重试的追加文件内容
      * @private
      */
-    async appendToFileWithRetry(content, retryCount = 3) {
+    async appendToFileWithRetry(content) {
         if (!fs) {
             console.warn('@chaeco/logger: fs module not available');
             return;
         }
+        const retryCount = this.options.retryCount;
+        const retryDelay = this.options.retryDelay;
         let lastError;
         for (let attempt = 0; attempt <= retryCount; attempt++) {
             try {
                 if (attempt > 0) {
-                    // 重试延迟
-                    await new Promise(resolve => setTimeout(resolve, 100 * attempt));
+                    // 重试延迟（使用配置的 retryDelay）
+                    await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
                 }
                 // 确保日志目录存在
                 this.ensureLogDirectory();
