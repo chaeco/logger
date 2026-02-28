@@ -113,7 +113,7 @@ export class LogFormatter {
     const parts: string[] = []
 
     if (consoleTimestamp) {
-      parts.push(ColorUtils.colorizeTimestamp(`[${entry.timestamp}]`))
+      parts.push(ColorUtils.colorizeTimestamp(entry.timestamp))
     }
 
     if (entry.name) parts.push(ColorUtils.colorizeName(entry.name))
@@ -165,7 +165,11 @@ export class LogFormatter {
    * 安全的 JSON 序列化，处理循环引用
    */
   private safeStringify(obj: any, indent?: number): string {
+    // 基础类型直接返回或使用默认序列化，提升性能
+    if (obj === null || typeof obj !== 'object') return String(obj)
+
     try {
+      // 只有对象才需要 WeakSet 检查循环引用
       const seen = new WeakSet()
       return JSON.stringify(
         obj,

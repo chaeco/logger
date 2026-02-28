@@ -3,8 +3,8 @@
  * 演示三个核心高级功能的使用方法
  */
 
-import { Logger } from '../src/logger'
-import { LogEntry } from '../src/types'
+import { Logger } from '../src/index'
+import { LogEntry } from '../src/index'
 
 console.log('=== 高级功能演示 ===\n')
 
@@ -152,11 +152,6 @@ let errorCount = 0
 const customErrorLogger = new Logger({
   level: 'info',
   name: 'custom-error-logger',
-  file: {
-    enabled: true,
-    path: './logs',
-    filename: 'error-test',
-  },
   file: {
     enabled: true,
     path: './logs',

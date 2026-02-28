@@ -1,7 +1,7 @@
 /**
  * 自动初始化功能测试示例
  */
-import { Logger } from '../src/logger'
+import { Logger } from '../src/index'
 import path from 'path'
 import fs from 'fs'
 

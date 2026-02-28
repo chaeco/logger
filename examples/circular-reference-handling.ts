@@ -5,7 +5,7 @@
  * 比如 Express 的 Request/Response 对象
  */
 
-import { Logger } from '../src/logger'
+import { Logger } from '../src/index'
 
 // 创建一个logger实例，带有文件输出
 const logger = new Logger({

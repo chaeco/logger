@@ -27,8 +27,11 @@ export class ColorUtils {
     return color(level.toUpperCase().padEnd(6))
   }
 
+  /**
+   * 将时间戳渲染为灰色，内部添加方括号（与 colorizeName / colorizeFileLocation 约定一致）
+   */
   static colorizeTimestamp(timestamp: string): string {
-    return chalk.gray(timestamp)
+    return chalk.gray(`[${timestamp}]`)
   }
 
   static colorizeName(name: string): string {

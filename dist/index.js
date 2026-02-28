@@ -17,7 +17,7 @@ Object.defineProperty(exports, "Logger", { enumerable: true, get: function () { 
  */
 exports.logger = new logger_1.Logger({
     name: 'app',
-    file: { enabled: true, path: './logs', maxSize: '10m', maxFiles: 30 },
+    file: { enabled: true, path: './logs', maxSize: 10 * 1024 * 1024, maxFiles: 30 },
     console: { enabled: true, colors: true, timestamp: true },
 });
 var environment_1 = require("./utils/environment");

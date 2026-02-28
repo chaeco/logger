@@ -41,7 +41,10 @@ export class NodeWriter {
   private currentFilePath = ''
   private currentFileSize = 0
   private fileIndex = 0
-  initError?: Error
+  private _initError: Error | undefined
+
+  /** 初始化错误（只读），如果初始化失败则值不为 undefined */
+  get initError(): Error | undefined { return this._initError }
 
   constructor(options: Required<FileOptions>) {
     this.options = {
@@ -83,8 +86,8 @@ export class NodeWriter {
         fs.mkdirSync(this.options.path, { recursive: true, mode: 0o755 })
       }
     } catch (e) {
-      this.initError = e instanceof Error ? e : new Error(String(e))
-      console.warn(`@chaeco/logger: Failed to create log directory "${this.options.path}":`, this.initError.message)
+      this._initError = e instanceof Error ? e : new Error(String(e))
+      console.warn(`@chaeco/logger: Failed to create log directory "${this.options.path}":`, this._initError.message)
     }
   }
 
@@ -111,8 +114,8 @@ export class NodeWriter {
         this.currentFileSize = 0
       }
     } catch (e) {
-      this.initError = e instanceof Error ? e : new Error(String(e))
-      console.warn('@chaeco/logger: Failed to initialize current file:', this.initError.message)
+      this._initError = e instanceof Error ? e : new Error(String(e))
+      console.warn('@chaeco/logger: Failed to initialize current file:', this._initError.message)
     }
   }
 
@@ -141,8 +144,15 @@ export class NodeWriter {
     try {
       const files = fs.readdirSync(this.options.path)
         .filter(f => f.startsWith(this.options.filename) && (f.endsWith('.log') || f.endsWith('.log.gz')))
-        .map(f => ({ name: f, path: path!.join(this.options.path, f), stats: fs!.statSync(path!.join(this.options.path, f)) }))
-        .sort((a, b) => b.stats.mtime.getTime() - a.stats.mtime.getTime())
+        .map(f => {
+          const stats = fs!.statSync(path!.join(this.options.path, f))
+          // 优先使用文件名中的日期，避免 mtime 因压缩操作被刷新为近期时间
+          const fileDate = f.match(/(\d{4}-\d{2}-\d{2})/)?.[1] ?? null
+          const sortKey = fileDate ? new Date(fileDate).getTime() : stats.mtime.getTime()
+          return { name: f, path: path!.join(this.options.path, f), stats, fileDate, sortKey }
+        })
+        // 按日期降序（最新在前）；用文件名日期而非 mtime 排序，防止旧压缩日志因近期 mtime 排在前
+        .sort((a, b) => b.sortKey - a.sortKey)
 
       // 超出 maxFiles 的文件：先收集待删集合，避免与过期清理产生重复 unlinkSync 调用
       const toDelete = new Set<string>()
@@ -151,7 +161,10 @@ export class NodeWriter {
 
       const maxAgeMs = this.options.maxAge * 24 * 60 * 60 * 1000
       files.forEach(f => {
-        if (Date.now() - f.stats.mtime.getTime() > maxAgeMs) toDelete.add(f.path)
+        // 同 compressOldLogs：用文件名日期判断过期，而非 mtime。
+        // .log.gz 的 mtime 是压缩时间（近期），用 mtime 会使旧日志看起来永远"新"。
+        const ageBasis = f.fileDate ? new Date(f.fileDate).getTime() : f.stats.mtime.getTime()
+        if (Date.now() - ageBasis > maxAgeMs) toDelete.add(f.path)
       })
 
       toDelete.forEach(p => { try { fs!.unlinkSync(p) } catch { /* ignore */ } })

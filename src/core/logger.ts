@@ -57,6 +57,10 @@ export class Logger extends LoggerBase {
     this.emitEvent('levelChange', `日志等级已从 ${oldLevel} 更改为 ${newLevel}`, undefined, { oldLevel, newLevel })
   }
 
+  // ─── 限流状态 ─────────────────────────────────────────────
+  /** 当前窗口是否已发出过限流事件（避免每条被限流的日志都触发一次事件洪泛） */
+  private rlEventEmittedInWindow = false
+
   // ─── 初始化 ──────────────────────────────────────────────
 
   init(): void { this.fileManager?.init() }
@@ -149,12 +153,14 @@ export class Logger extends LoggerBase {
     if (!this.rateLimit.enabled) return true
     const now = Date.now()
     if (now - this.rlWindowStart >= this.rateLimit.windowSize) {
-      this.rlWindowStart = now; this.rlWindowCount = 0
+      this.rlWindowStart = now; this.rlWindowCount = 0; this.rlEventEmittedInWindow = false
     }
     if (this.rlWindowCount >= this.rateLimit.maxLogsPerWindow) {
-      if (this.rateLimit.warnOnLimitExceeded)
+      if (this.rateLimit.warnOnLimitExceeded && !this.rlEventEmittedInWindow) {
+        this.rlEventEmittedInWindow = true
         this.emitEvent('rateLimitExceeded',
           `日志限流已触发: ${this.rlWindowCount}/${this.rateLimit.maxLogsPerWindow} 日志在 ${this.rateLimit.windowSize}ms 内`)
+      }
       return false
     }
     this.rlWindowCount++
@@ -239,7 +245,7 @@ export class Logger extends LoggerBase {
     if (!this.checkRateLimit()) { this.metrics.droppedLogs++; return }
 
     const entry = this.createLogEntry(level, message, data)
-    if (this.filter.enabled && !this.shouldPassFilter(entry)) { this.metrics.filteredLogs++; return }
+    if (this.filter.enabled && !this.shouldPassFilter(entry)) { this.metrics.filteredLogs++; this.metrics.droppedLogs++; return }
 
     this.writeToConsole(entry)
     this.writeToFile(entry)

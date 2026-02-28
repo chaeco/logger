@@ -9,11 +9,6 @@
  */
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'silent';
 /**
- * 日志数据类型
- * 支持任何数据类型
- */
-export type LogData = any;
-/**
  * Logger 配置选项
  */
 export interface LoggerOptions {
@@ -46,8 +41,8 @@ export interface FileOptions {
     enabled?: boolean;
     /** 日志文件存储路径，默认为 './logs' */
     path?: string;
-    /** 单个日志文件的最大大小，支持 'b', 'kb', 'mb', 'gb'，默认为 '10m' */
-    maxSize?: string;
+    /** 单个日志文件的最大大小（字节），默认为 10485760（10 MB） */
+    maxSize?: number;
     /** 最大保留的日志文件数量，默认为 30 */
     maxFiles?: number;
     /** 日志文件名前缀，默认为 'app' */
@@ -56,12 +51,6 @@ export interface FileOptions {
     maxAge?: number;
     /** 是否压缩旧的日志文件（gzip），默认为 false */
     compress?: boolean;
-    /** 文件写入模式：'sync' 同步写入，'async' 异步写入，默认 'sync' */
-    writeMode?: 'sync' | 'async';
-    /** 文件权限（Unix），默认 0o644 */
-    fileMode?: number;
-    /** 目录权限（Unix），默认 0o755 */
-    dirMode?: number;
     /** 写入失败时的重试次数，默认为 3 */
     retryCount?: number;
     /** 重试间隔基数（毫秒），实际延迟为 retryDelay * attempt，默认为 100 */
@@ -152,18 +141,6 @@ export interface LoggerEvent {
     data?: any;
 }
 /**
- * 环境信息接口
- * @internal
- */
-export interface EnvironmentInfo {
-    /** 运行环境：'node' 或 'browser' */
-    environment: 'node' | 'browser';
-    /** 是否支持文件写入 */
-    supportsFileWrite: boolean;
-    /** 是否支持本地存储 */
-    supportsLocalStorage: boolean;
-}
-/**
  * 日志过滤器函数
  */
 export type LoggerFilter = (entry: LogEntry) => boolean;
@@ -184,15 +161,16 @@ export interface FilterOptions {
 export interface PerformanceMetrics {
     /** 总日志数 */
     totalLogs: number;
-    /** 被采样排除的日志数（不满足采样率而跳过的日志） */
+    /** 因采样率不满足而被跳过的日志数（即"采样丢弃数"）。
+     *  字段名 sampledLogs 保留以维持向后兼容，语义等同于 sampleDroppedLogs。 */
     sampledLogs: number;
-    /** 所有被丢弃的日志数（采样排除 + 限流丢弃之和） */
+    /** 所有被丢弃的日志总数（= 采样丢弃 + 限流丢弃 + 过滤丢弃），满足 totalLogs - droppedLogs = 实际写出条数 */
     droppedLogs: number;
     /** 被过滤掉的日志数 */
     filteredLogs: number;
     /** 平均日志处理时间（毫秒） */
     avgProcessingTime: number;
-    /** 文件写入次数（Node.js） */
+    /** 文件写入尝试次数（含最终失败的写入，Node.js 环境下统计） */
     fileWrites: number;
     /** 文件写入错误数 */
     fileWriteErrors: number;
@@ -203,7 +181,8 @@ export interface PerformanceMetrics {
  * 日志格式化配置选项
  */
 export interface FormatOptions {
-    /** 是否启用自定义格式，默认为 false */
+    /** 是否启用自定义 formatter 函数，默认为 false。
+     *  仅控制 `formatter` 函数是否生效；`json` 模式独立工作，不受此开关影响 */
     enabled?: boolean;
     /** 日期时间格式，默认为 'YYYY-MM-DD HH:mm:ss.SSS' */
     timestampFormat?: string;
@@ -230,21 +209,19 @@ export interface AsyncWriteOptions {
     batchSize?: number;
     /** 批量写入的最大等待时间（毫秒），默认为 1000 */
     flushInterval?: number;
-    /** 队列满时的处理策略：'drop'（丢弃）、'block'（阻塞）、'overflow'（溢出到新队列） */
+    /** 队列满时的处理策略：'drop'（丢弃新消息）、'block'（等待当前批次写完再继续）、
+     *  'overflow'（当前与 'block' 等效：等待写完后继续；未来可扩展为独立溢出队列） */
     overflowStrategy?: 'drop' | 'block' | 'overflow';
 }
 /**
  * 错误处理配置选项
  */
 export interface ErrorHandlingOptions {
-    /** 是否静默错误（不抛出异常），默认为 true */
+    /** 是否静默错误：true（默认）→ 抑制所有 stderr 输出，仅通过 onError 回调和事件通知；
+     *  false → 与 fallbackToConsole 协同：当 fallbackToConsole:true 时输出 console.error */
     silent?: boolean;
     /** 错误回调函数 */
     onError?: (error: Error, context: string) => void;
-    /** 写入失败时的重试次数，默认为 3 */
-    retryCount?: number;
-    /** 重试延迟（毫秒），默认为 100 */
-    retryDelay?: number;
     /** 是否在错误时降级到控制台输出，默认为 true */
     fallbackToConsole?: boolean;
 }

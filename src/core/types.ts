@@ -178,7 +178,7 @@ export interface PerformanceMetrics {
   /** 因采样率不满足而被跳过的日志数（即"采样丢弃数"）。
    *  字段名 sampledLogs 保留以维持向后兼容，语义等同于 sampleDroppedLogs。 */
   sampledLogs: number
-  /** 所有被丢弃的日志总数（= 采样丢弃 + 限流丢弃），即 sampledLogs 与 rateLimit 丢弃之和 */
+  /** 所有被丢弃的日志总数（= 采样丢弃 + 限流丢弃 + 过滤丢弃），满足 totalLogs - droppedLogs = 实际写出条数 */
   droppedLogs: number
   /** 被过滤掉的日志数 */
   filteredLogs: number

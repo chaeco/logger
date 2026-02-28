@@ -11,15 +11,18 @@ export declare abstract class LoggerBase {
     protected abstract formatter: LogFormatter;
     protected abstract fileManager: FileManager | undefined;
     protected abstract consoleEnabled: boolean;
-    protected abstract readonly isNodeEnv: boolean;
     /** 供 updateConfig 回调：等级变更时触发事件 */
-    protected abstract emitLevelChange(level: LogLevel): void;
+    protected abstract emitLevelChange(newLevel: LogLevel, oldLevel: LogLevel): void;
     protected sampling: Required<SamplingOptions>;
     protected rateLimit: Required<RateLimitOptions>;
     protected rlWindowStart: number;
     protected rlWindowCount: number;
     protected filter: Required<FilterOptions>;
-    protected errorHandling: Required<Omit<ErrorHandlingOptions, 'onError'>> & Pick<ErrorHandlingOptions, 'onError'>;
+    protected errorHandling: {
+        silent: boolean;
+        onError?: (error: Error, context: string) => void;
+        fallbackToConsole: boolean;
+    };
     protected metrics: PerformanceMetrics;
     protected metricsN: number;
     protected readonly levelPriority: Record<LogLevel, number>;

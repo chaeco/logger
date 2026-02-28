@@ -3,7 +3,7 @@
  * 演示如何使用 maxAge 和 compress 配置来管理日志文件
  */
 
-import { Logger } from '../src/logger'
+import { Logger } from '../src/index'
 
 // 示例 1: 启用自动清理，保留最近 7 天的日志
 const loggerWithAutoCleanup = new Logger({

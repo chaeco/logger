@@ -41,17 +41,23 @@ if (environment_1.isNodeEnvironment) {
  * @internal
  */
 class NodeWriter {
+    /** 初始化错误（只读），如果初始化失败则值不为 undefined */
+    get initError() { return this._initError; }
     constructor(options) {
         this.currentFilePath = '';
         this.currentFileSize = 0;
         this.fileIndex = 0;
-        this.options = options;
+        this.options = {
+            ...options,
+            // 清理文件名中的路径分隔符，防止目录穿越攻击（如 filename: '../../etc/passwd'）
+            filename: options.filename.replace(/[/\\]/g, '_'),
+        };
     }
     init() {
         this.ensureLogDirectory();
         this.initializeCurrentFile();
     }
-    /** 同步写入单条消息 */
+    /** 写入单条消息（内部使用 appendFileSync，通过重试逻辑提供可靠性） */
     async write(message) {
         this.checkDateRotation();
         if (this.shouldRotateFile())
@@ -60,7 +66,7 @@ class NodeWriter {
         await this.appendToFileWithRetry(content);
         this.currentFileSize += Buffer.byteLength(content, 'utf8');
     }
-    /** 批量写入消息（异步队列刷新路径） */
+    /** 批量写入消息（由 AsyncQueue 刷新时调用） */
     async writeBatch(messages) {
         this.checkDateRotation();
         const content = messages.join('\n') + '\n';
@@ -75,12 +81,12 @@ class NodeWriter {
             return;
         try {
             if (!fs.existsSync(this.options.path)) {
-                fs.mkdirSync(this.options.path, { recursive: true, mode: this.options.dirMode });
+                fs.mkdirSync(this.options.path, { recursive: true, mode: 0o755 });
             }
         }
         catch (e) {
-            this.initError = e instanceof Error ? e : new Error(String(e));
-            console.warn(`@chaeco/logger: Failed to create log directory "${this.options.path}":`, this.initError.message);
+            this._initError = e instanceof Error ? e : new Error(String(e));
+            console.warn(`@chaeco/logger: Failed to create log directory "${this.options.path}":`, this._initError.message);
         }
     }
     initializeCurrentFile() {
@@ -88,8 +94,11 @@ class NodeWriter {
             return;
         try {
             this.fileIndex = 0;
-            while (fs.existsSync(this.getIndexedFilePath()))
+            // 上界取 maxFiles 的两倍（最少 100），避免目录中存在大量文件时无限扫描
+            const maxIndex = Math.max(this.options.maxFiles * 2, 100);
+            while (this.fileIndex < maxIndex && fs.existsSync(this.getIndexedFilePath())) {
                 this.fileIndex++;
+            }
             if (this.fileIndex > 0) {
                 this.fileIndex--;
                 this.currentFilePath = this.getIndexedFilePath();
@@ -106,8 +115,8 @@ class NodeWriter {
             }
         }
         catch (e) {
-            this.initError = e instanceof Error ? e : new Error(String(e));
-            console.warn('@chaeco/logger: Failed to initialize current file:', this.initError.message);
+            this._initError = e instanceof Error ? e : new Error(String(e));
+            console.warn('@chaeco/logger: Failed to initialize current file:', this._initError.message);
         }
     }
     getIndexedFilePath() {
@@ -119,22 +128,8 @@ class NodeWriter {
             ? path.join(this.options.path, `${base}.log`)
             : path.join(this.options.path, `${base}.${this.fileIndex}.log`);
     }
-    parseMaxSize(size) {
-        const m = size.toLowerCase().match(/^(\d+(?:\.\d+)?)\s*(b|kb|m|mb|gb|g)?$/);
-        if (!m?.[1])
-            return 10 * 1024 * 1024;
-        const v = parseFloat(m[1]);
-        const u = m[2];
-        if (u === 'b')
-            return v;
-        if (u === 'kb')
-            return v * 1024;
-        if (u === 'gb' || u === 'g')
-            return v * 1024 * 1024 * 1024;
-        return v * 1024 * 1024; // m / mb
-    }
     shouldRotateFile() {
-        return this.currentFileSize >= this.parseMaxSize(this.options.maxSize);
+        return this.currentFileSize >= this.options.maxSize;
     }
     rotateFile() {
         this.fileIndex++;
@@ -148,21 +143,31 @@ class NodeWriter {
         try {
             const files = fs.readdirSync(this.options.path)
                 .filter(f => f.startsWith(this.options.filename) && (f.endsWith('.log') || f.endsWith('.log.gz')))
-                .map(f => ({ name: f, path: path.join(this.options.path, f), stats: fs.statSync(path.join(this.options.path, f)) }))
-                .sort((a, b) => b.stats.mtime.getTime() - a.stats.mtime.getTime());
+                .map(f => {
+                const stats = fs.statSync(path.join(this.options.path, f));
+                // 优先使用文件名中的日期，避免 mtime 因压缩操作被刷新为近期时间
+                const fileDate = f.match(/(\d{4}-\d{2}-\d{2})/)?.[1] ?? null;
+                const sortKey = fileDate ? new Date(fileDate).getTime() : stats.mtime.getTime();
+                return { name: f, path: path.join(this.options.path, f), stats, fileDate, sortKey };
+            })
+                // 按日期降序（最新在前）；用文件名日期而非 mtime 排序，防止旧压缩日志因近期 mtime 排在前
+                .sort((a, b) => b.sortKey - a.sortKey);
+            // 超出 maxFiles 的文件：先收集待删集合，避免与过期清理产生重复 unlinkSync 调用
+            const toDelete = new Set();
             if (files.length > this.options.maxFiles)
-                files.slice(this.options.maxFiles).forEach(f => { try {
-                    fs.unlinkSync(f.path);
-                }
-                catch { /* ignore */ } });
+                files.slice(this.options.maxFiles).forEach(f => toDelete.add(f.path));
             const maxAgeMs = this.options.maxAge * 24 * 60 * 60 * 1000;
             files.forEach(f => {
-                if (Date.now() - f.stats.mtime.getTime() > maxAgeMs)
-                    try {
-                        fs.unlinkSync(f.path);
-                    }
-                    catch { /* ignore */ }
+                // 同 compressOldLogs：用文件名日期判断过期，而非 mtime。
+                // .log.gz 的 mtime 是压缩时间（近期），用 mtime 会使旧日志看起来永远"新"。
+                const ageBasis = f.fileDate ? new Date(f.fileDate).getTime() : f.stats.mtime.getTime();
+                if (Date.now() - ageBasis > maxAgeMs)
+                    toDelete.add(f.path);
             });
+            toDelete.forEach(p => { try {
+                fs.unlinkSync(p);
+            }
+            catch { /* ignore */ } });
             if (this.options.compress)
                 this.compressOldLogs().catch(() => { });
         }
@@ -172,15 +177,16 @@ class NodeWriter {
         if (!fs || !path || !readFile || !writeFile || !unlink || !gzip)
             return;
         const today = (0, dayjs_1.default)().format('YYYY-MM-DD');
-        const oneDayMs = 24 * 60 * 60 * 1000;
         try {
             const files = fs.readdirSync(this.options.path)
                 .filter(f => f.startsWith(this.options.filename) && f.endsWith('.log') && !f.endsWith('.log.gz'))
-                .map(f => ({ name: f, path: path.join(this.options.path, f), stats: fs.statSync(path.join(this.options.path, f)) }));
+                .map(f => ({ name: f, path: path.join(this.options.path, f) }));
             for (const file of files) {
                 const dateMatch = file.name.match(/(\d{4}-\d{2}-\d{2})/);
                 const fileDate = dateMatch?.[1];
-                if (Date.now() - file.stats.mtime.getTime() > oneDayMs && file.path !== this.currentFilePath && fileDate && fileDate !== today) {
+                // 仅压缩文件名日期不是今天的文件，并排除当前写入文件。
+                // 不依赖 mtime：跨午夜写入的昨日文件 mtime < 24h 会导致 mtime 条件失效。
+                if (fileDate && fileDate !== today && file.path !== this.currentFilePath) {
                     try {
                         const compressed = await gzip(await readFile(file.path));
                         await writeFile(file.path + '.gz', compressed);
@@ -212,11 +218,11 @@ class NodeWriter {
                 if (i > 0)
                     await new Promise(r => setTimeout(r, retryDelay * i));
                 this.ensureLogDirectory();
-                fs.appendFileSync(this.currentFilePath, content, { mode: this.options.fileMode });
+                fs.appendFileSync(this.currentFilePath, content, { mode: 0o644 });
                 return;
             }
             catch (e) {
-                lastError = e;
+                lastError = e instanceof Error ? e : new Error(String(e));
                 if (i === 0)
                     this.initializeCurrentFile();
             }

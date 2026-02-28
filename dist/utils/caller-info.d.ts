@@ -18,6 +18,10 @@ export declare class CallerInfoHelper {
     clearCache(): void;
     /** 获取缓存大小（调试用） */
     getCacheSize(): number;
+    /**
+     * 53 位非加密哈希（双 32 位混合），碰撞概率约为 32 位哈希的 1/20亿。
+     * 参考：https://stackoverflow.com/a/52171480
+     */
     private simpleHash;
     /** LRU 缓存写入：满时淘汰最旧项 */
     private cacheResult;

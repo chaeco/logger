@@ -18,7 +18,7 @@ export declare class AsyncQueue {
     enqueue(message: string): Promise<void>;
     /** 立即刷新队列 */
     flush(): Promise<void>;
-    /** 停止定时器并刷新剩余队列 */
+    /** 停止定时器并持续刷新直到队列完全清空 */
     stop(): Promise<void>;
 }
 //# sourceMappingURL=async-queue.d.ts.map

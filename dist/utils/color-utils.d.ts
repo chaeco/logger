@@ -8,6 +8,9 @@ import chalk from 'chalk';
 export declare class ColorUtils {
     static getLevelColor(level: string): typeof chalk;
     static colorizeLevel(level: string): string;
+    /**
+     * 将时间戳渲染为灰色，内部添加方括号（与 colorizeName / colorizeFileLocation 约定一致）
+     */
     static colorizeTimestamp(timestamp: string): string;
     static colorizeName(name: string): string;
     static colorizeFileLocation(location: string): string;

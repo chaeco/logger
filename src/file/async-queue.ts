@@ -81,6 +81,12 @@ export class AsyncQueue {
     const maxAttempts = Math.ceil(this.queue.length / this.options.batchSize) + FLUSH_SAFETY_BUFFER
     let attempts = 0
     while (this.queue.length > 0 && attempts < maxAttempts) {
+      if (this.isWriting) {
+        // 如果当前正在进行 flush（可能来自 setInterval），等待一小段时间再重试
+        await new Promise(r => setTimeout(r, 10))
+        attempts++
+        continue
+      }
       await this.flush()
       attempts++
     }

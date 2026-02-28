@@ -6,7 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.LoggerBase = void 0;
 const dayjs_1 = __importDefault(require("dayjs"));
 const file_manager_1 = require("../file/file-manager");
-/* eslint-disable @typescript-eslint/no-explicit-any */
+const environment_1 = require("../utils/environment");
 /**
  * LoggerBase - 持有配置状态及所有 configure* 方法的抽象基类。
  * Logger 子类提供 formatter、fileManager 等具体实现。
@@ -25,7 +25,7 @@ class LoggerBase {
         this.rlWindowCount = 0;
         this.filter = { enabled: false, filters: [], mode: 'all' };
         this.errorHandling = {
-            silent: true, onError: undefined, retryCount: 3, retryDelay: 100, fallbackToConsole: true,
+            silent: true, onError: undefined, fallbackToConsole: true,
         };
         this.metrics = {
             totalLogs: 0, sampledLogs: 0, droppedLogs: 0, filteredLogs: 0,
@@ -42,12 +42,13 @@ class LoggerBase {
             this.sampling.enabled = options.enabled;
         if (options.rate !== undefined) {
             this.sampling.rate = options.rate;
-            if (!options.rateByLevel) {
-                const r = options.rate;
-                this.sampling.rateByLevel = { debug: r, info: r, warn: r, error: r, silent: r };
-            }
+            // 无论是否同时传入 rateByLevel，全局 rate 都先整体传播到各级别作为默认值，
+            // 避免"同时传 rate + rateByLevel"时未覆盖的级别仍使用旧值的隐患。
+            const r = options.rate;
+            this.sampling.rateByLevel = { debug: r, info: r, warn: r, error: r, silent: r };
         }
         if (options.rateByLevel) {
+            // rateByLevel 作为精细覆盖，叠加在全局 rate 之上
             const cur = this.sampling.rateByLevel;
             const rl = options.rateByLevel;
             this.sampling.rateByLevel = {
@@ -85,25 +86,24 @@ class LoggerBase {
             this.errorHandling.silent = options.silent;
         if (options.onError !== undefined)
             this.errorHandling.onError = options.onError;
-        if (options.retryCount !== undefined)
-            this.errorHandling.retryCount = options.retryCount;
-        if (options.retryDelay !== undefined)
-            this.errorHandling.retryDelay = options.retryDelay;
         if (options.fallbackToConsole !== undefined)
             this.errorHandling.fallbackToConsole = options.fallbackToConsole;
     }
     updateConfig(options) {
-        if (options.level) {
+        if (options.level !== undefined) {
+            const old = this.level;
             this.level = options.level;
-            this.emitLevelChange(options.level);
+            this.emitLevelChange(options.level, old);
         }
         if (options.console !== undefined) {
-            this.consoleEnabled = options.console.enabled ?? true;
-            this.formatter.settings.consoleColors = options.console.colors ?? this.isNodeEnv;
-            this.formatter.settings.consoleTimestamp = options.console.timestamp ?? true;
+            // 三处字段均回退到当前值，避免"只传其中一个字段"时其余字段被重置为全局默认值
+            this.consoleEnabled = options.console.enabled ?? this.consoleEnabled;
+            this.formatter.settings.consoleColors = options.console.colors ?? this.formatter.settings.consoleColors;
+            this.formatter.settings.consoleTimestamp = options.console.timestamp ?? this.formatter.settings.consoleTimestamp;
         }
-        if (options.file?.enabled && !this.fileManager) {
-            this.fileManager = new file_manager_1.FileManager(options.file);
+        // 与构造函数保持一致：enabled 缺省视为 true（!== false），而非需要显式传 true
+        if (environment_1.isNodeEnvironment && options.file !== undefined && options.file.enabled !== false && !this.fileManager) {
+            this.fileManager = new file_manager_1.FileManager(options.file, options.async);
         }
         if (options.sampling)
             this.configureSampling(options.sampling);

@@ -190,17 +190,19 @@ describe('Logger', () => {
   })
 
   describe('Filtering', () => {
-    it('should filter logs based on custom filter', () => {
+    it('should filter logs based on custom filter and track it in droppedLogs', () => {
       logger.configureFilter({
         enabled: true,
         filters: [(entry) => !entry.message.includes('filtered')],
       })
 
+      const initialDropped = logger.getMetrics().droppedLogs
       logger.info('normal message')
       logger.info('filtered message')
 
       const metrics = logger.getMetrics()
       expect(metrics.filteredLogs).toBeGreaterThan(0)
+      expect(metrics.droppedLogs).toBe(initialDropped + 1)
     })
 
     it('should support multiple filters with "all" mode', () => {

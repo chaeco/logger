@@ -13,25 +13,20 @@ const dayjs_1 = __importDefault(require("dayjs"));
 class Logger extends logger_base_1.LoggerBase {
     constructor(options = {}) {
         super();
-        this.isNodeEnv = environment_1.isNodeEnvironment;
-        this.isBrowserEnv = environment_1.isBrowserEnvironment;
+        // isNodeEnvironment / isBrowserEnvironment 均为模块级常量，无需复制为实例字段
         this.callerInfoHelper = new caller_info_1.CallerInfoHelper();
         this.eventHandlers = new Map();
+        // ─── 限流状态 ─────────────────────────────────────────────
+        /** 当前窗口是否已发出过限流事件（避免每条被限流的日志都触发一次事件洪泛） */
+        this.rlEventEmittedInWindow = false;
         this.level = options.level ?? 'info';
         this.name = options.name;
-        if (this.isNodeEnv && options.file?.enabled !== false) {
-            this.fileManager = new file_manager_1.FileManager({
-                ...options.file,
-                retryCount: options.errorHandling?.retryCount,
-                retryDelay: options.errorHandling?.retryDelay,
-            }, options.async);
-        }
-        else if (this.isBrowserEnv && options.file?.enabled) {
+        if (environment_1.isNodeEnvironment && options.file?.enabled !== false) {
             this.fileManager = new file_manager_1.FileManager(options.file, options.async);
         }
         this.consoleEnabled = options.console?.enabled ?? true;
         this.formatter = new formatter_1.LogFormatter({
-            consoleColors: options.console?.colors ?? this.isNodeEnv,
+            consoleColors: options.console?.colors ?? environment_1.isNodeEnvironment,
             consoleTimestamp: options.console?.timestamp ?? true,
             format: {
                 enabled: options.format?.enabled ?? false,
@@ -52,8 +47,8 @@ class Logger extends logger_base_1.LoggerBase {
         if (options.errorHandling)
             this.configureErrorHandling(options.errorHandling);
     }
-    emitLevelChange(level) {
-        this.emitEvent('levelChange', `Log level changed to ${level}`);
+    emitLevelChange(newLevel, oldLevel) {
+        this.emitEvent('levelChange', `日志等级已从 ${oldLevel} 更改为 ${newLevel}`, undefined, { oldLevel, newLevel });
     }
     // ─── 初始化 ──────────────────────────────────────────────
     init() { this.fileManager?.init(); }
@@ -66,7 +61,7 @@ class Logger extends logger_base_1.LoggerBase {
     setLevel(level) {
         const old = this.level;
         this.level = level;
-        this.emitEvent('levelChange', `日志等级已从 ${old} 更改为 ${level}`, undefined, { oldLevel: old, newLevel: level });
+        this.emitLevelChange(level, old);
     }
     getLevel() { return this.level; }
     // ─── 事件 ────────────────────────────────────────────────
@@ -97,34 +92,29 @@ class Logger extends logger_base_1.LoggerBase {
             errorHandling: { ...this.errorHandling },
         };
         if (this.fileManager) {
-            const fm = this.fileManager;
-            opts.file = { enabled: true, path: fm.options.path, maxSize: fm.options.maxSize, maxFiles: fm.options.maxFiles, filename: fm.options.filename };
+            // 通过公开的 getOptions()/getAsyncOptions() 读取配置，避免以 as any 访问私有字段；
+            // 完整复制所有文件选项和异步策略，确保子 logger 行为与父实例完全一致
+            const fmOpts = this.fileManager.getOptions();
+            opts.file = {
+                enabled: true,
+                path: fmOpts.path,
+                maxSize: fmOpts.maxSize,
+                maxFiles: fmOpts.maxFiles,
+                filename: fmOpts.filename,
+                maxAge: fmOpts.maxAge,
+                compress: fmOpts.compress,
+                retryCount: fmOpts.retryCount,
+                retryDelay: fmOpts.retryDelay,
+            };
+            opts.async = this.fileManager.getAsyncOptions();
         }
         return new Logger(opts);
     }
-    // ─── 存储（浏览器 IndexedDB） ────────────────────────────
-    async queryStoredLogs(options) {
-        if (!this.fileManager)
-            return [];
-        try {
-            return await this.fileManager.queryLogs(options);
-        }
-        catch {
-            return [];
-        }
-    }
-    async clearStoredLogs() {
-        try {
-            await this.fileManager?.clearLogs();
-        }
-        catch { /* ignore */ }
-    }
     // ─── 生命周期 ────────────────────────────────────────────
     async close() {
-        const fm = this.fileManager;
-        if (typeof fm?.close === 'function') {
+        if (this.fileManager) {
             try {
-                await fm.close();
+                await this.fileManager.close();
             }
             catch (e) {
                 console.error('Error closing FileManager:', e);
@@ -147,10 +137,13 @@ class Logger extends logger_base_1.LoggerBase {
         if (now - this.rlWindowStart >= this.rateLimit.windowSize) {
             this.rlWindowStart = now;
             this.rlWindowCount = 0;
+            this.rlEventEmittedInWindow = false;
         }
         if (this.rlWindowCount >= this.rateLimit.maxLogsPerWindow) {
-            if (this.rateLimit.warnOnLimitExceeded)
+            if (this.rateLimit.warnOnLimitExceeded && !this.rlEventEmittedInWindow) {
+                this.rlEventEmittedInWindow = true;
                 this.emitEvent('rateLimitExceeded', `日志限流已触发: ${this.rlWindowCount}/${this.rateLimit.maxLogsPerWindow} 日志在 ${this.rateLimit.windowSize}ms 内`);
+            }
             return false;
         }
         this.rlWindowCount++;
@@ -185,7 +178,7 @@ class Logger extends logger_base_1.LoggerBase {
         const { file, line } = this.callerInfoHelper.getCallerInfo();
         const entry = {
             level,
-            message: typeof message === 'string' ? message : this.formatter.safeStringify(message),
+            message, // 调用方已保证 message 为 string，无需再次 safeStringify
             timestamp: (0, dayjs_1.default)().format('YYYY-MM-DD HH:mm:ss.SSS'),
             data,
         };
@@ -201,21 +194,16 @@ class Logger extends logger_base_1.LoggerBase {
         if (!this.consoleEnabled)
             return;
         const msg = this.formatter.formatConsoleMessage(entry);
-        (entry.level === 'error' ? console.error : console.log)(msg);
+        const consoleFn = entry.level === 'error' ? console.error : console.log;
+        consoleFn(msg);
     }
     writeToFile(entry) {
         if (!this.fileManager)
             return;
         const msg = this.formatter.formatMessage(entry);
-        try {
-            const p = this.fileManager.write(msg);
-            if (p instanceof Promise)
-                p.catch(e => this.handleWriteError(e, msg, entry));
-            this.metrics.fileWrites++;
-        }
-        catch (e) {
-            this.handleWriteError(e, msg, entry);
-        }
+        // FileManager.write() 始终返回 Promise<void>，直接链式处理错误即可，无需 instanceof 判断
+        this.fileManager.write(msg).catch(e => this.handleWriteError(e, msg, entry));
+        this.metrics.fileWrites++;
     }
     handleWriteError(error, message, entry) {
         this.metrics.fileWriteErrors++;
@@ -226,11 +214,14 @@ class Logger extends logger_base_1.LoggerBase {
         catch (e) {
             console.error('Error in error handler:', e);
         }
-        this.emitEvent('fileWriteError', `文件写入失败: ${message}`, err);
-        if (this.errorHandling.fallbackToConsole && entry)
+        // 事件 message 仅包含简短摘要，避免嵌入完整日志文本（大对象序列化可能非常长）
+        const preview = message.length > 120 ? message.slice(0, 120) + '…' : message;
+        this.emitEvent('fileWriteError', `文件写入失败: ${preview}`, err);
+        // fallbackToConsole 决定是否将失败的日志条目降级输出到 console（默认 true）。
+        // silent:true（默认）完全静默，抑制所有 stderr 输出；两者皆允许时才打印。
+        // 注意：不能 throw——调用链来自 .catch()，否则产生 UnhandledPromiseRejection。
+        if (this.errorHandling.fallbackToConsole && !this.errorHandling.silent && entry)
             console.error('[Logger Fallback]', this.formatter.formatConsoleMessage(entry));
-        if (!this.errorHandling.silent)
-            throw err;
     }
     log(level, ...args) {
         if (!this.shouldLog(level))
@@ -246,7 +237,8 @@ class Logger extends logger_base_1.LoggerBase {
         }
         else if (args[0] instanceof Error) {
             message = args[0].message || String(args[0]);
-            data = args.length > 1 ? { error: args[0], additionalData: args.slice(1) } : undefined;
+            // 单独传入 Error 时也保留 error 对象（含 stack 堆栈信息）；有额外参数时合并到对象中
+            data = args.length > 1 ? { error: args[0], additionalData: args.slice(1) } : args[0];
         }
         else {
             message = '';
@@ -266,6 +258,7 @@ class Logger extends logger_base_1.LoggerBase {
         const entry = this.createLogEntry(level, message, data);
         if (this.filter.enabled && !this.shouldPassFilter(entry)) {
             this.metrics.filteredLogs++;
+            this.metrics.droppedLogs++;
             return;
         }
         this.writeToConsole(entry);

@@ -28,10 +28,13 @@ class ColorUtils {
     }
     static colorizeLevel(level) {
         const color = this.getLevelColor(level);
-        return color(level.toUpperCase().padEnd(5));
+        return color(level.toUpperCase().padEnd(6));
     }
+    /**
+     * 将时间戳渲染为灰色，内部添加方括号（与 colorizeName / colorizeFileLocation 约定一致）
+     */
     static colorizeTimestamp(timestamp) {
-        return chalk_1.default.gray(timestamp);
+        return chalk_1.default.gray(`[${timestamp}]`);
     }
     static colorizeName(name) {
         return chalk_1.default.cyan(`[${name}]`);

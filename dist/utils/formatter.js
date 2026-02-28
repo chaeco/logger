@@ -38,10 +38,11 @@ class LogFormatter {
     }
     // ─── 公开格式化方法 ───────────────────────────────────────
     /**
-     * 格式化为文件输出字符串
+     * 格式化为文件输出字符串。
+     * 注意：文件日志始终包含时间戳，与控制台的 consoleTimestamp 开关无关。
      */
     formatMessage(entry) {
-        const { format, consoleTimestamp } = this.settings;
+        const { format } = this.settings;
         // 自定义格式化函数
         if (format.enabled && format.formatter) {
             try {
@@ -69,34 +70,34 @@ class LogFormatter {
                 jsonEntry.data = entry.data;
             return this.safeStringify(jsonEntry, format.jsonIndent);
         }
-        // 默认格式
-        const parts = [];
-        if (consoleTimestamp) {
-            const ts = (0, dayjs_1.default)(entry.timestamp).format(format.timestampFormat);
-            parts.push(`[${ts}]`);
-        }
-        if (format.includeName && entry.name)
-            parts.push(`[${entry.name}]`);
-        parts.push(entry.level.toUpperCase().padEnd(5));
-        if (format.includeStack && entry.file && entry.line) {
-            parts.push(`(${entry.file}:${entry.line})`);
-        }
-        parts.push(entry.message);
-        if (entry.data !== undefined)
-            parts.push(this.safeStringify(entry.data));
-        return parts.join(' ');
+        // 默认格式：文件日志始终包含时间戳
+        return this.buildPlainText(entry, true);
     }
     /**
-     * 格式化为带 ANSI 颜色的控制台字符串
+     * 格式化为带 ANSI 颜色的控制台字符串。
+     * 无色模式下使用纯文本，且遵守 consoleTimestamp 开关（与文件格式独立）。
+     * 自定义 formatter 函数的优先级高于颜色开关。
      */
     formatConsoleMessage(entry) {
-        const { consoleColors, consoleTimestamp } = this.settings;
+        const { consoleColors, consoleTimestamp, format } = this.settings;
+        // 自定义格式化函数优先——无论是否启用颜色，均走自定义逻辑
+        if (format.enabled && format.formatter) {
+            try {
+                return format.formatter(entry);
+            }
+            catch (error) {
+                console.error('Error in custom formatter:', error);
+                // 降级到默认格式
+            }
+        }
         if (!consoleColors) {
-            return this.formatMessage(entry);
+            // 无色模式：纯文本，遵守 consoleTimestamp 开关。
+            // 不能调用 formatMessage()，因为文件格式始终包含时间戳，两者策略不同。
+            return this.buildPlainText(entry, consoleTimestamp);
         }
         const parts = [];
         if (consoleTimestamp) {
-            parts.push(color_utils_1.ColorUtils.colorizeTimestamp(`[${entry.timestamp}]`));
+            parts.push(color_utils_1.ColorUtils.colorizeTimestamp(entry.timestamp));
         }
         if (entry.name)
             parts.push(color_utils_1.ColorUtils.colorizeName(entry.name));
@@ -109,11 +110,38 @@ class LogFormatter {
             parts.push(this.safeStringify(entry.data));
         return parts.join(' ');
     }
+    // ─── 私有辅助 ───────────────────────────────────────────────
+    /**
+     * 构建纯文本日志行，供文件输出和无色控制台复用。
+     * @param includeTimestamp 是否包含时间戳（文件格式始终传 true；控制台按 consoleTimestamp 传入）
+     */
+    buildPlainText(entry, includeTimestamp) {
+        const { format } = this.settings;
+        const parts = [];
+        if (includeTimestamp) {
+            const ts = (0, dayjs_1.default)(entry.timestamp).format(format.timestampFormat);
+            parts.push(`[${ts}]`);
+        }
+        if (format.includeName && entry.name)
+            parts.push(`[${entry.name}]`);
+        parts.push(entry.level.toUpperCase().padEnd(6));
+        if (format.includeStack && entry.file && entry.line) {
+            parts.push(`(${entry.file}:${entry.line})`);
+        }
+        parts.push(entry.message);
+        if (entry.data !== undefined)
+            parts.push(this.safeStringify(entry.data));
+        return parts.join(' ');
+    }
     /**
      * 安全的 JSON 序列化，处理循环引用
      */
     safeStringify(obj, indent) {
+        // 基础类型直接返回或使用默认序列化，提升性能
+        if (obj === null || typeof obj !== 'object')
+            return String(obj);
         try {
+            // 只有对象才需要 WeakSet 检查循环引用
             const seen = new WeakSet();
             return JSON.stringify(obj, (_key, value) => {
                 if (typeof value === 'object' && value !== null) {

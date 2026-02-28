@@ -1,5 +1,4 @@
 "use strict";
-/* eslint-disable @typescript-eslint/no-explicit-any */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CallerInfoHelper = void 0;
 /**
@@ -23,32 +22,30 @@ class CallerInfoHelper {
         // 尝试从缓存获取（使用堆栈的哈希作为键）
         const stackHash = this.simpleHash(stack);
         if (this.cache.has(stackHash)) {
-            return this.cache.get(stackHash) || {};
+            // Map.has() 已确认键存在，get() 不会返回 undefined
+            return this.cache.get(stackHash);
         }
         // 解析堆栈信息
         const stackLines = stack.split('\n');
-        let skipCount = 0;
         for (let i = 0; i < stackLines.length; i++) {
             const line = stackLines[i]?.trim();
             if (!line)
                 continue;
-            // 跳过 Error 本身的行
+            // 跳过 Error 本身的行（V8 堆栈首行）
             if (line.startsWith('Error'))
                 continue;
-            // 跳过 logger 内部的方法调用
+            // 跳过所有 logger 内部帧，包括：
+            //   CallerInfoHelper.getCallerInfo  → 当前函数
+            //   Logger.createLogEntry           → 内部调用 getCallerInfo 的方法
+            //   Logger.log / .debug / .info …  → 公开日志方法
             if (line.includes('Logger.log') ||
                 line.includes('Logger.info') ||
                 line.includes('Logger.warn') ||
                 line.includes('Logger.error') ||
                 line.includes('Logger.debug') ||
+                line.includes('Logger.createLogEntry') ||
                 line.includes('getCallerInfo') ||
                 line.includes('CallerInfoHelper')) {
-                skipCount++;
-                continue;
-            }
-            // 跳过前几个内部调用
-            if (skipCount < 2) {
-                skipCount++;
                 continue;
             }
             // 匹配文件路径和行号
@@ -91,14 +88,22 @@ class CallerInfoHelper {
         return this.cache.size;
     }
     // ─── 私有方法 ─────────────────────────────────────────────
+    /**
+     * 53 位非加密哈希（双 32 位混合），碰撞概率约为 32 位哈希的 1/20亿。
+     * 参考：https://stackoverflow.com/a/52171480
+     */
     simpleHash(str) {
-        let hash = 0;
+        let h1 = 0xdeadbeef;
+        let h2 = 0x41c6ce57;
         for (let i = 0; i < str.length; i++) {
             const char = str.charCodeAt(i);
-            hash = ((hash << 5) - hash) + char;
-            hash = hash & hash; // 转为 32 位整数
+            h1 = Math.imul(h1 ^ char, 2654435761);
+            h2 = Math.imul(h2 ^ char, 1597334677);
         }
-        return Math.abs(hash).toString(36);
+        h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+        h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+        const hash = 4294967296 * (2097151 & h2) + (h1 >>> 0);
+        return hash.toString(36);
     }
     /** LRU 缓存写入：满时淘汰最旧项 */
     cacheResult(key, info) {

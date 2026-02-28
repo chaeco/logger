@@ -1,6 +1,6 @@
 {
   "name": "@chaeco/logger",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "A comprehensive logging module with file rotation, colors, and multiple log levels",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
