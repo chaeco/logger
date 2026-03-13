@@ -1,12 +1,10 @@
 import { ColorUtils } from '../src/utils/color-utils'
 
-// chalk 已被 __mocks__/chalk.ts mock，输出即原始字符串（无 ANSI 码）
-
 describe('ColorUtils — getLevelColor()', () => {
   it('debug → gray', () => {
     const color = ColorUtils.getLevelColor('debug')
     expect(typeof color).toBe('function')
-    expect(color('x')).toBe('x') // mock chalk 直接返回原字符串
+    expect(color('x')).toContain('x') // 原生 ANSI 包装后仍含原字符串
   })
 
   it('info → blue', () => {

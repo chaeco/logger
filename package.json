@@ -1,6 +1,6 @@
 {
   "name": "@chaeco/logger",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "A comprehensive logging module with file rotation, colors, and multiple log levels",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -46,11 +46,6 @@
     "tsx": "^4.0.0",
     "typedoc": "^0.25.0",
     "typescript": "^5.0.0"
-  },
-  "dependencies": {
-    "@chaeco/indexed-db-storage": "github:chaeco/indexed-db-storage",
-    "chalk": "^5.3.0",
-    "dayjs": "^1.11.0"
   },
   "files": [
     "dist",

@@ -15,10 +15,4 @@ module.exports = {
   coverageReporters: ['text', 'lcov', 'html'],
   moduleFileExtensions: ['ts', 'js', 'json', 'node'],
   verbose: true,
-  transformIgnorePatterns: [
-    'node_modules/(?!(chalk)/)',
-  ],
-  moduleNameMapper: {
-    '^chalk$': '<rootDir>/tests/__mocks__/chalk.ts',
-  },
 }

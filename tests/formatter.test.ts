@@ -108,7 +108,7 @@ describe('LogFormatter — formatConsoleMessage()', () => {
     expect(out).not.toContain('2026-03-13')
   })
 
-  it('有色模式不抛出（chalk 已 mock）', () => {
+  it('有色模式不抛出', () => {
     const f = makeFormatter({ consoleColors: true, consoleTimestamp: true })
     expect(() => f.formatConsoleMessage(makeEntry({ name: 'app', file: 'app.ts', line: 1 }))).not.toThrow()
   })

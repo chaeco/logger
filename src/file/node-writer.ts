@@ -2,7 +2,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as zlib from 'zlib'
 import { promisify } from 'util'
-import dayjs from 'dayjs'
+import { formatNow } from '../utils/date-utils'
 import { FileOptions } from '../core/types'
 
 const gzip = promisify(zlib.gzip)
@@ -96,7 +96,7 @@ export class NodeWriter {
   }
 
   private getIndexedFilePath(): string {
-    const today = dayjs().format('YYYY-MM-DD')
+    const today = formatNow('YYYY-MM-DD')
     const base = `${this.options.filename}-${today}`
     return this.fileIndex === 0
       ? path.join(this.options.path, `${base}.log`)
@@ -148,7 +148,7 @@ export class NodeWriter {
   }
 
   private async compressOldLogs(): Promise<void> {
-    const today = dayjs().format('YYYY-MM-DD')
+    const today = formatNow('YYYY-MM-DD')
     try {
       const files = fs.readdirSync(this.options.path)
         .filter(f => f.startsWith(this.options.filename) && f.endsWith('.log') && !f.endsWith('.log.gz'))
@@ -171,7 +171,7 @@ export class NodeWriter {
   }
 
   private checkDateRotation(): void {
-    const today = dayjs().format('YYYY-MM-DD')
+    const today = formatNow('YYYY-MM-DD')
     const m = path.basename(this.currentFilePath).match(/(\d{4}-\d{2}-\d{2})/)
     if ((m?.[1] ?? null) !== today) this.initializeCurrentFile()
   }

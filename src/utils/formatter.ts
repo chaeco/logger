@@ -2,7 +2,7 @@
 
 import { LogEntry, FormatOptions } from '../core/types'
 import { ColorUtils } from './color-utils'
-import dayjs from 'dayjs'
+import { formatDate } from './date-utils'
 
 /**
  * 格式化器运行时配置
@@ -142,7 +142,7 @@ export class LogFormatter {
     const parts: string[] = []
 
     if (includeTimestamp) {
-      const ts = dayjs(entry.timestamp).format(format.timestampFormat)
+      const ts = formatDate(entry.timestamp, format.timestampFormat)
       parts.push(`[${ts}]`)
     }
 

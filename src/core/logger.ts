@@ -7,7 +7,7 @@ import {
 import { FileManager } from '../file/file-manager'
 import { CallerInfoHelper } from '../utils/caller-info'
 import { LogFormatter } from '../utils/formatter'
-import dayjs from 'dayjs'
+import { formatNow } from '../utils/date-utils'
 
 /**
  * 日志器主类
@@ -170,7 +170,7 @@ export class Logger {
   private emitEvent(type: LoggerEventType, message: string, error?: Error, data?: any): void {
     const handlers = this.eventHandlers.get(type)
     if (!handlers?.length) return
-    const event: LoggerEvent = { type, message, error, data, timestamp: dayjs().format('YYYY-MM-DD HH:mm:ss.SSS') }
+    const event: LoggerEvent = { type, message, error, data, timestamp: formatNow('YYYY-MM-DD HH:mm:ss.SSS') }
     for (const h of handlers) {
       try { h(event) } catch (e) { console.error('Error in logger event handler:', e) }
     }
@@ -181,7 +181,7 @@ export class Logger {
     const entry: LogEntry = {
       level,
       message,
-      timestamp: dayjs().format('YYYY-MM-DD HH:mm:ss.SSS'),
+      timestamp: formatNow('YYYY-MM-DD HH:mm:ss.SSS'),
       data,
     }
     if (this.name) entry.name = this.name
