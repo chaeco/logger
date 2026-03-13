@@ -9,22 +9,22 @@
 [![Build](https://img.shields.io/badge/构建-通过-brightgreen.svg)](https://github.com/chaeco/logger)
 [![Coverage](https://img.shields.io/badge/测试-77%20tests-brightgreen.svg)](https://github.com/chaeco/logger)
 
-[English](README.md) | [中文文档](docs/zh-CN/README.md)
+[English](README.md) | 中文
 
 ## 功能特性
 
-- ✅ **跨平台支持**: 无缝支持 Node.js 和现代浏览器。
 - ✅ **标准日志级别**: `debug`、`info`、`warn`、`error` 和 `silent`。
 - ✅ **自动上下文**: 自动捕获调用者文件路径和行号。
-- ✅ **文件管理** (Node.js):
+- ✅ **文件管理**:
   - 基于大小的自动日志轮转。
   - 基于时间/数量的自动清理旧日志。
   - 内置 Gzip 压缩归档日志。
-- ✅ **异步队列**: 高性能异步批量写入与溢出处理策略。
-- ✅ **浏览器支持**: 控制台输出以及可选的存储能力。
-- ✅ **高级功能**: 日志采样、速率限制和自定义过滤器。
-- ✅ **可扩展性**: 支持自定义格式化器和事件钩子（`levelChange`、`fileWriteError` 等）。
+- ✅ **异步队列**: 高性能异步批量写入，支持 `drop` / `block` / `overflow` 溢出策略。
+- ✅ **格式化**: 纯文本、JSON 格式及自定义 formatter 函数。
+- ✅ **事件钩子**: 支持 `levelChange`、`fileWriteError` 事件监听。
+- ✅ **子 Logger**: `logger.child('module')` 继承父级配置，独立命名。
 - ✅ **TypeScript 原生支持**: 完整的类型安全和智能感知。
+- ⚠️ **仅支持 Node.js**: 不支持浏览器环境。
 
 ## 安装
 
@@ -60,23 +60,57 @@ const logger = new Logger({
   level: 'info',
   name: 'api-service',
   file: {
-    enabled: true,
     path: './logs',
     maxSize: 10 * 1024 * 1024, // 10MB
     maxFiles: 30,
     maxAge: 30,                 // 天数
-    compress: true              // 压缩当前日期之前的日志
+    compress: true,             // 压缩今天之前的日志文件（gzip）
   },
-  console: {
-    enabled: true,
-    colors: true,
-    timestamp: true
-  },
+  console: { enabled: true, colors: true, timestamp: true },
   async: {
     enabled: true,
     batchSize: 100,
-    flushInterval: 1000
-  }
+    flushInterval: 1000,
+    overflowStrategy: 'drop',   // 'drop' | 'block' | 'overflow'
+  },
+  format: { json: true, jsonIndent: 2 },
+  errorHandling: {
+    silent: true,
+    onError: (err, ctx) => console.error(`[${ctx}]`, err.message),
+  },
+});
+```
+
+### 子 Logger
+
+```typescript
+const dbLogger = logger.child('db');
+dbLogger.info('已连接');          // 输出名称为 [api-service:db]
+
+const reqLogger = logger.child('request');
+reqLogger.warn('响应较慢', { duration: 3200 });
+```
+
+### 事件钩子
+
+```typescript
+logger.on('levelChange', (e) => {
+  console.log(`日志级别变更: ${e.data.oldLevel} → ${e.data.newLevel}`);
+});
+
+logger.on('fileWriteError', (e) => {
+  // 触发外部告警（如 Sentry、钉钉机器人等）
+  console.error('日志写入失败:', e.error?.message);
+});
+```
+
+### 生命周期
+
+```typescript
+// 进程退出前刷新异步队列并关闭文件句柄
+process.on('SIGTERM', async () => {
+  await logger.close();
+  process.exit(0);
 });
 ```
 

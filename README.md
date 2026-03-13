@@ -13,18 +13,15 @@ A feature-rich, high-performance logging library for Node.js.
 
 ## Features
 
-- ✅ **Cross-platform**: Seamless support for Node.js and modern browsers.
 - ✅ **Standard Log Levels**: `debug`, `info`, `warn`, `error`, and `silent`.
 - ✅ **Auto-Context**: Automatically captures caller file path and line numbers.
-- ✅ **File Management** (Node.js):
-  - Automatic log rotation based on size.
-  - Automatic cleanup of old logs based on age/count.
-  - Built-in Gzip compression for archived logs.
-- ✅ **Async Queue**: High-performance asynchronous batch writing with overflow strategies.
-- ✅ **Browser Support**: Console output with optional storage capabilities.
-- ✅ **Advanced Features**: Log sampling, rate limiting, and custom filters.
-- ✅ **Extensible**: Support for custom formatters and event hooks (`levelChange`, `fileWriteError`, etc.).
+- ✅ **File Management**: Size-based rotation, age/count cleanup, Gzip compression.
+- ✅ **Async Queue**: Batch writing with `drop` / `block` / `overflow` strategies.
+- ✅ **Formatting**: Plain text, JSON, and custom `formatter` function.
+- ✅ **Event Hooks**: `levelChange`, `fileWriteError` event listeners.
+- ✅ **Child Logger**: `logger.child('module')` inherits config with scoped name.
 - ✅ **TypeScript Native**: Full type safety and intellisense.
+- ⚠️ **Node.js only**: Browser environments are not supported.
 
 ## Installation
 
@@ -60,23 +57,57 @@ const logger = new Logger({
   level: 'info',
   name: 'api-service',
   file: {
-    enabled: true,
     path: './logs',
     maxSize: 10 * 1024 * 1024, // 10MB
     maxFiles: 30,
-    maxAge: 30,                 // Days
-    compress: true              // Compress logs older than current day
+    maxAge: 30,                 // days
+    compress: true,             // gzip logs older than today
   },
-  console: {
-    enabled: true,
-    colors: true,
-    timestamp: true
-  },
+  console: { enabled: true, colors: true, timestamp: true },
   async: {
     enabled: true,
     batchSize: 100,
-    flushInterval: 1000
-  }
+    flushInterval: 1000,
+    overflowStrategy: 'drop',   // 'drop' | 'block' | 'overflow'
+  },
+  format: { json: true, jsonIndent: 2 },
+  errorHandling: {
+    silent: true,
+    onError: (err, ctx) => console.error(`[${ctx}]`, err.message),
+  },
+});
+```
+
+### Child Logger
+
+```typescript
+const dbLogger = logger.child('db');
+dbLogger.info('Connected');       // logged as [api-service:db]
+
+const reqLogger = logger.child('request');
+reqLogger.warn('Slow response', { duration: 3200 });
+```
+
+### Event Hooks
+
+```typescript
+logger.on('levelChange', (e) => {
+  console.log(`Level changed: ${e.data.oldLevel} → ${e.data.newLevel}`);
+});
+
+logger.on('fileWriteError', (e) => {
+  // trigger external alert (e.g. Sentry, PagerDuty)
+  console.error('Log write failed:', e.error?.message);
+});
+```
+
+### Lifecycle
+
+```typescript
+// Flush async queue and close file handles before process exit
+process.on('SIGTERM', async () => {
+  await logger.close();
+  process.exit(0);
 });
 ```
 
