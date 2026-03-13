@@ -1,9 +1,13 @@
 # @chaeco/logger
 
-一个功能丰富、高性能、跨平台的日志库，支持 Node.js 和浏览器环境。
+一个功能丰富、高性能的 Node.js 日志库。
 
+[![npm version](https://img.shields.io/badge/版本-0.1.6-blue.svg)](https://github.com/chaeco/logger)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Ready-3178c6.svg)](https://www.typescriptlang.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D16-339933.svg)](https://nodejs.org/)
+[![Build](https://img.shields.io/badge/构建-通过-brightgreen.svg)](https://github.com/chaeco/logger)
+[![Coverage](https://img.shields.io/badge/测试-77%20tests-brightgreen.svg)](https://github.com/chaeco/logger)
 
 [English](README.md) | [中文文档](docs/zh-CN/README.md)
 

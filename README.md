@@ -1,9 +1,13 @@
 # @chaeco/logger
 
-A feature-rich, high-performance, cross-platform logging library for Node.js and Browser environments.
+A feature-rich, high-performance logging library for Node.js.
 
+[![npm version](https://img.shields.io/badge/version-0.1.6-blue.svg)](https://github.com/chaeco/logger)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Ready-3178c6.svg)](https://www.typescriptlang.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D16-339933.svg)](https://nodejs.org/)
+[![Build](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://github.com/chaeco/logger)
+[![Coverage](https://img.shields.io/badge/coverage-77%20tests-brightgreen.svg)](https://github.com/chaeco/logger)
 
 [English](README.md) | [中文](README.zh-CN.md)
 
