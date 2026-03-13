@@ -1,0 +1,54 @@
+flowchart TD
+    USER["调用方\nlogger.info('msg', data)"]
+
+    subgraph Logger["Logger（核心入口）"]
+        LEVEL{级别过滤\nshouldLog?}
+        PARSE[解析参数\nmessage / data]
+        ENTRY[createLogEntry\n添加 timestamp / name]
+        CALLER[CallerInfoHelper\n解析调用栈 file:line]
+    end
+
+    subgraph Output["输出管道"]
+        CONSOLE[writeToConsole]
+        FILE[writeToFile]
+    end
+
+    subgraph Format["LogFormatter"]
+        FMT_C[formatConsoleMessage\n彩色 / 纯文本]
+        FMT_F[formatMessage\n纯文本 / JSON / 自定义]
+        COLOR[ColorUtils\nANSI 着色]
+    end
+
+    subgraph FileLayer["文件层"]
+        FM[FileManager\n懒初始化 · 门面]
+        ASYNC{异步模式?}
+        AQ[AsyncQueue\nbatchSize / flushInterval]
+        NW[NodeWriter\n追加写入 + 重试]
+        FS["fs.appendFileSync\n磁盘文件"]
+        ROT[轮转 / 清理 / 压缩\ngzip · maxFiles · maxAge]
+    end
+
+    ERR[errorHandling\nonError 回调 · fileWriteError 事件]
+
+    USER --> LEVEL
+    LEVEL -- 过滤掉 --> DISCARD(["丢弃"])
+    LEVEL -- 通过 --> PARSE
+    PARSE --> ENTRY
+    ENTRY <--> CALLER
+    ENTRY --> CONSOLE
+    ENTRY --> FILE
+
+    CONSOLE --> FMT_C
+    FMT_C <--> COLOR
+    FMT_C --> STDOUT["console.log / console.error"]
+
+    FILE --> FMT_F
+    FMT_F --> FM
+    FM --> ASYNC
+    ASYNC -- 是 --> AQ
+    ASYNC -- 否 --> NW
+    AQ -- flush --> NW
+    NW --> FS
+    NW --> ROT
+
+    FM -- 写入失败 --> ERR

@@ -5,7 +5,7 @@ A feature-rich, high-performance, cross-platform logging library for Node.js and
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
 
-[中文文档 (Chinese)](docs/zh-CN/README.md)
+[English](README.md) | [中文](README.zh-CN.md)
 
 ## Features
 

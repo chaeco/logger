@@ -21,12 +21,6 @@ export interface LoggerOptions {
   console?: ConsoleOptions
   /** Logger 名称，用于区分不同的 logger 实例 */
   name?: string
-  /** 日志采样配置 */
-  sampling?: SamplingOptions
-  /** 日志限流配置 */
-  rateLimit?: RateLimitOptions
-  /** 日志过滤器配置 */
-  filter?: FilterOptions
   /** 日志格式化配置 */
   format?: FormatOptions
   /** 异步写入配置（Node.js） */
@@ -76,6 +70,7 @@ export interface ConsoleOptions {
  * @internal
  */
 export interface LogEntry {
+  /* eslint-disable @typescript-eslint/no-explicit-any */
   /** 日志等级 */
   level: LogLevel
   /** 日志消息内容 */
@@ -89,46 +84,13 @@ export interface LogEntry {
   /** 调用者行号 */
   line?: number
   /** 附加数据 */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data?: any
-}
-
-/**
- * 日志采样配置选项
- */
-export interface SamplingOptions {
-  /** 是否启用采样，默认为 false */
-  enabled?: boolean
-  /** 采样率，0-1 之间，例如 0.1 表示 10% 的日志被记录 */
-  rate?: number
-  /** 根据日志级别指定采样率 */
-  rateByLevel?: {
-    debug?: number
-    info?: number
-    warn?: number
-    error?: number
-    silent?: number
-  }
-}
-
-/**
- * 日志限流配置选项
- */
-export interface RateLimitOptions {
-  /** 是否启用限流，默认为 false */
-  enabled?: boolean
-  /** 时间窗口大小（毫秒），默认为 1000 */
-  windowSize?: number
-  /** 时间窗口内的最大日志数 */
-  maxLogsPerWindow?: number
-  /** 超过限流时是否记录警告 */
-  warnOnLimitExceeded?: boolean
 }
 
 /**
  * Logger 事件类型
  */
-export type LoggerEventType = 'error' | 'fileWriteError' | 'rateLimitExceeded' | 'levelChange'
+export type LoggerEventType = 'error' | 'fileWriteError' | 'levelChange'
 
 /**
  * Logger 事件处理程序
@@ -139,6 +101,7 @@ export type LoggerEventHandler = (event: LoggerEvent) => void
  * Logger 事件接口
  */
 export interface LoggerEvent {
+  /* eslint-disable @typescript-eslint/no-explicit-any */
   /** 事件类型 */
   type: LoggerEventType
   /** 事件消息 */
@@ -148,48 +111,7 @@ export interface LoggerEvent {
   /** 相关的错误对象（如果有） */
   error?: Error
   /** 事件的附加数据 */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data?: any
-}
-
-/**
- * 日志过滤器函数
- */
-export type LoggerFilter = (entry: LogEntry) => boolean
-
-/**
- * 日志过滤器配置选项
- */
-export interface FilterOptions {
-  /** 是否启用过滤 */
-  enabled?: boolean
-  /** 过滤函数列表 */
-  filters?: LoggerFilter[]
-  /** 匹配模式（all: 所有条件都满足，any: 任意条件满足） */
-  mode?: 'all' | 'any'
-}
-
-/**
- * 性能指标接口
- */
-export interface PerformanceMetrics {
-  /** 总日志数 */
-  totalLogs: number
-  /** 因采样率不满足而被跳过的日志数（即"采样丢弃数"）。
-   *  字段名 sampledLogs 保留以维持向后兼容，语义等同于 sampleDroppedLogs。 */
-  sampledLogs: number
-  /** 所有被丢弃的日志总数（= 采样丢弃 + 限流丢弃 + 过滤丢弃），满足 totalLogs - droppedLogs = 实际写出条数 */
-  droppedLogs: number
-  /** 被过滤掉的日志数 */
-  filteredLogs: number
-  /** 平均日志处理时间（毫秒） */
-  avgProcessingTime: number
-  /** 文件写入尝试次数（含最终失败的写入，Node.js 环境下统计） */
-  fileWrites: number
-  /** 文件写入错误数 */
-  fileWriteErrors: number
-  /** 记录的时间戳 */
-  timestamp: string
 }
 
 /**

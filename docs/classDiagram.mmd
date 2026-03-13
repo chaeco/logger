@@ -1,0 +1,116 @@
+classDiagram
+    direction TB
+
+    class Logger {
+        -level: LogLevel
+        -name: string
+        -fileManager: FileManager
+        -consoleEnabled: boolean
+        -formatter: LogFormatter
+        -callerInfoHelper: CallerInfoHelper
+        -errorHandling: ErrorHandlingOptions
+        -eventHandlers: Map
+        +debug(...args)
+        +info(...args)
+        +warn(...args)
+        +error(...args)
+        +setLevel(level)
+        +getLevel() LogLevel
+        +configureFormat(options)
+        +configureErrorHandling(options)
+        +updateConfig(options)
+        +on(type, handler)
+        +off(type, handler)
+        +child(name) Logger
+        +init()
+        +close()
+    }
+
+    class FileManager {
+        -options: Required~FileOptions~
+        -asyncOptions: AsyncWriteOptions
+        -nodeWriter: NodeWriter
+        -asyncQueue: AsyncQueue
+        -isInitialized: boolean
+        +init()
+        +write(message)
+        +close()
+        +getOptions() FileOptions
+        +getAsyncOptions() AsyncWriteOptions
+        +getQueueStatus()
+    }
+
+    class NodeWriter {
+        -options: Required~FileOptions~
+        -currentFilePath: string
+        -currentFileSize: number
+        -fileIndex: number
+        +init()
+        +write(message)
+        +writeBatch(messages)
+        -ensureLogDirectory()
+        -shouldRotateFile() bool
+        -rotateFile()
+        -cleanupOldFiles()
+        -compressOldLogs()
+        -checkDateRotation()
+        -appendToFileWithRetry(content)
+    }
+
+    class AsyncQueue {
+        -queue: string[]
+        -options: Required~AsyncWriteOptions~
+        -onFlush: Function
+        -flushTimer: Timeout
+        +size: number
+        +start()
+        +stop()
+        +enqueue(message)
+        +flush()
+    }
+
+    class LogFormatter {
+        +settings: FormatterSettings
+        +formatMessage(entry) string
+        +formatConsoleMessage(entry) string
+        +updateFormat(options)
+        -buildPlainText(entry, ts) string
+        -safeStringify(obj, indent) string
+    }
+
+    class ColorUtils {
+        +getLevelColor(level)$
+        +colorizeLevel(level) string$
+        +colorizeTimestamp(ts) string$
+        +colorizeName(name) string$
+        +colorizeFileLocation(loc) string$
+        +colorizeMessage(level, msg) string$
+    }
+
+    class CallerInfoHelper {
+        -cache: Map
+        -maxCacheSize: number
+        +getCallerInfo()
+        +clearCache()
+        +getCacheSize() number
+    }
+
+    class LogEntry {
+        +level: LogLevel
+        +message: string
+        +timestamp: string
+        +name: string
+        +file: string
+        +line: number
+        +data: any
+    }
+
+    Logger *-- FileManager : 持有
+    Logger *-- LogFormatter : 持有
+    Logger *-- CallerInfoHelper : 持有
+    FileManager *-- NodeWriter : 委托写入
+    FileManager o-- AsyncQueue : 可选异步
+    LogFormatter ..> ColorUtils : 调用
+    LogFormatter ..> LogEntry : 格式化
+    Logger ..> LogEntry : 创建
+    AsyncQueue ..> NodeWriter : onFlush 回调

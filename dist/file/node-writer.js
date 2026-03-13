@@ -1,41 +1,41 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.NodeWriter = void 0;
+const fs = __importStar(require("fs"));
+const path = __importStar(require("path"));
+const zlib = __importStar(require("zlib"));
+const util_1 = require("util");
 const dayjs_1 = __importDefault(require("dayjs"));
-const environment_1 = require("../utils/environment");
-// ─── 条件加载 Node.js 模块 ─────────────────────────────────
-let fs;
-let path;
-let zlib;
-let gzip;
-let readFile;
-let writeFile;
-let unlink;
-if (environment_1.isNodeEnvironment) {
-    try {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        fs = require('fs');
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        path = require('path');
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        zlib = require('zlib');
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const { promisify } = require('util');
-        if (zlib)
-            gzip = promisify(zlib.gzip);
-        if (fs) {
-            readFile = promisify(fs.readFile);
-            writeFile = promisify(fs.writeFile);
-            unlink = promisify(fs.unlink);
-        }
-    }
-    catch (e) {
-        console.warn('@chaeco/logger: Failed to load Node.js modules:', e);
-    }
-}
+const gzip = (0, util_1.promisify)(zlib.gzip);
+const readFile = (0, util_1.promisify)(fs.readFile);
+const writeFile = (0, util_1.promisify)(fs.writeFile);
+const unlink = (0, util_1.promisify)(fs.unlink);
 /**
  * Node.js 文件写入器 - 管理日志文件的创建、轮转、压缩与清理。
  * @internal
@@ -77,8 +77,6 @@ class NodeWriter {
     }
     // ─── 私有方法 ────────────────────────────────────────────
     ensureLogDirectory() {
-        if (!fs?.existsSync)
-            return;
         try {
             if (!fs.existsSync(this.options.path)) {
                 fs.mkdirSync(this.options.path, { recursive: true, mode: 0o755 });
@@ -90,8 +88,6 @@ class NodeWriter {
         }
     }
     initializeCurrentFile() {
-        if (!fs || !path)
-            return;
         try {
             this.fileIndex = 0;
             // 上界取 maxFiles 的两倍（最少 100），避免目录中存在大量文件时无限扫描
@@ -120,8 +116,6 @@ class NodeWriter {
         }
     }
     getIndexedFilePath() {
-        if (!path)
-            return '';
         const today = (0, dayjs_1.default)().format('YYYY-MM-DD');
         const base = `${this.options.filename}-${today}`;
         return this.fileIndex === 0
@@ -138,8 +132,6 @@ class NodeWriter {
         this.cleanupOldFiles();
     }
     cleanupOldFiles() {
-        if (!fs || !path)
-            return;
         try {
             const files = fs.readdirSync(this.options.path)
                 .filter(f => f.startsWith(this.options.filename) && (f.endsWith('.log') || f.endsWith('.log.gz')))
@@ -174,8 +166,6 @@ class NodeWriter {
         catch { /* ignore cleanup errors */ }
     }
     async compressOldLogs() {
-        if (!fs || !path || !readFile || !writeFile || !unlink || !gzip)
-            return;
         const today = (0, dayjs_1.default)().format('YYYY-MM-DD');
         try {
             const files = fs.readdirSync(this.options.path)
@@ -199,18 +189,12 @@ class NodeWriter {
         catch { /* ignore */ }
     }
     checkDateRotation() {
-        if (!path)
-            return;
         const today = (0, dayjs_1.default)().format('YYYY-MM-DD');
         const m = path.basename(this.currentFilePath).match(/(\d{4}-\d{2}-\d{2})/);
         if ((m?.[1] ?? null) !== today)
             this.initializeCurrentFile();
     }
     async appendToFileWithRetry(content) {
-        if (!fs) {
-            console.warn('@chaeco/logger: fs module not available');
-            return;
-        }
         const { retryCount, retryDelay } = this.options;
         let lastError;
         for (let i = 0; i <= retryCount; i++) {

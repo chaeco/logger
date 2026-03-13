@@ -1,19 +1,21 @@
-import { LogLevel, LoggerOptions, LoggerEventType, LoggerEventHandler } from './types';
-import { LoggerBase } from './logger-base';
-import { FileManager } from '../file/file-manager';
-import { LogFormatter } from '../utils/formatter';
-export declare class Logger extends LoggerBase {
-    protected level: LogLevel;
-    private name?;
-    protected fileManager: FileManager | undefined;
-    protected consoleEnabled: boolean;
+import { LogLevel, LoggerOptions, LoggerEventType, LoggerEventHandler, FormatOptions, ErrorHandlingOptions } from './types';
+/**
+ * 日志器主类
+ * @remarks
+ * 扁平结构，无继承。支持多级别日志、彩色控制台输出、文件写入、事件钩子与子 Logger。
+ * 仅支持 Node.js 运行时。
+ */
+export declare class Logger {
+    private level;
+    private readonly name;
+    private fileManager;
+    private consoleEnabled;
+    private readonly formatter;
     private readonly callerInfoHelper;
-    protected formatter: LogFormatter;
-    private eventHandlers;
+    private readonly errorHandling;
+    private readonly eventHandlers;
+    private readonly levelPriority;
     constructor(options?: LoggerOptions);
-    protected emitLevelChange(newLevel: LogLevel, oldLevel: LogLevel): void;
-    /** 当前窗口是否已发出过限流事件（避免每条被限流的日志都触发一次事件洪泛） */
-    private rlEventEmittedInWindow;
     init(): void;
     debug(...args: any[]): void;
     info(...args: any[]): void;
@@ -21,14 +23,14 @@ export declare class Logger extends LoggerBase {
     error(...args: any[]): void;
     setLevel(level: LogLevel): void;
     getLevel(): LogLevel;
+    configureFormat(options: Partial<FormatOptions>): void;
+    configureErrorHandling(options: ErrorHandlingOptions): void;
+    updateConfig(options: LoggerOptions): void;
     on(type: LoggerEventType, handler: LoggerEventHandler): void;
     off(type: LoggerEventType, handler: LoggerEventHandler): void;
     child(name: string): Logger;
     close(): Promise<void>;
     private shouldLog;
-    private shouldSample;
-    private checkRateLimit;
-    private shouldPassFilter;
     private emitEvent;
     private createLogEntry;
     private writeToConsole;

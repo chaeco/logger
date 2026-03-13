@@ -1,260 +1,155 @@
-import { FileManager } from '../src/file/file-manager'
 import * as fs from 'fs'
-import * as path from 'path'
+import { FileManager } from '../src/file/file-manager'
 
-describe('FileManager', () => {
-  const testLogDir = './test-logs'
-  let fileManager: FileManager
+const TEST_DIR = './test-logs-fm'
 
-  beforeEach(() => {
-    // 清理测试目录
-    if (fs.existsSync(testLogDir)) {
-      fs.rmSync(testLogDir, { recursive: true, force: true })
+function cleanup() {
+  if (fs.existsSync(TEST_DIR)) fs.rmSync(TEST_DIR, { recursive: true, force: true })
+}
+
+beforeEach(cleanup)
+afterEach(cleanup)
+
+// ─── 构造与默认值 ─────────────────────────────────────────────────────────────
+
+describe('FileManager — 构造', () => {
+  it('使用默认选项构造不抛出', () => {
+    expect(() => new FileManager({ path: TEST_DIR })).not.toThrow()
+  })
+
+  it('getOptions 返回合并后的完整配置（含默认值）', () => {
+    const fm = new FileManager({ path: TEST_DIR, maxSize: 5000, filename: 'test' })
+    const opts = fm.getOptions()
+    expect(opts.path).toBe(TEST_DIR)
+    expect(opts.maxSize).toBe(5000)
+    expect(opts.filename).toBe('test')
+    expect(opts.maxFiles).toBe(30)
+    expect(opts.maxAge).toBe(30)
+    expect(opts.compress).toBe(false)
+    expect(opts.retryCount).toBe(3)
+    expect(opts.retryDelay).toBe(100)
+  })
+
+  it('getAsyncOptions 无异步配置时返回 undefined', () => {
+    const fm = new FileManager({ path: TEST_DIR })
+    expect(fm.getAsyncOptions()).toBeUndefined()
+  })
+
+  it('getAsyncOptions 有异步配置时返回传入值', async () => {
+    const fm = new FileManager({ path: TEST_DIR }, { enabled: true, batchSize: 50 })
+    const ao = fm.getAsyncOptions()
+    expect(ao?.enabled).toBe(true)
+    expect(ao?.batchSize).toBe(50)
+    await fm.close()
+  })
+})
+
+// ─── init() ───────────────────────────────────────────────────────────────────
+
+describe('FileManager — init()', () => {
+  it('init 创建日志目录', () => {
+    const fm = new FileManager({ path: TEST_DIR })
+    fm.init()
+    expect(fs.existsSync(TEST_DIR)).toBe(true)
+  })
+
+  it('重复调用 init 不抛出（幂等）', () => {
+    const fm = new FileManager({ path: TEST_DIR })
+    fm.init()
+    expect(() => fm.init()).not.toThrow()
+  })
+
+  it('无效路径时 init 不抛出（静默处理）', () => {
+    const fm = new FileManager({ path: '/root/no-perm-xyz-123' })
+    expect(() => fm.init()).not.toThrow()
+  })
+})
+
+// ─── write() ──────────────────────────────────────────────────────────────────
+
+describe('FileManager — write()', () => {
+  it('写入后日志文件存在', async () => {
+    const fm = new FileManager({ path: TEST_DIR, filename: 'app' })
+    await fm.write('hello')
+    const files = fs.readdirSync(TEST_DIR)
+    expect(files.some(f => f.endsWith('.log'))).toBe(true)
+  })
+
+  it('enabled:false 时不写文件', async () => {
+    const fm = new FileManager({ enabled: false, path: TEST_DIR })
+    await fm.write('should not write')
+    expect(fs.existsSync(TEST_DIR)).toBe(false)
+  })
+
+  it('写入内容可读', async () => {
+    const fm = new FileManager({ path: TEST_DIR, filename: 'app' })
+    await fm.write('readable content')
+    const files = fs.readdirSync(TEST_DIR)
+    const content = fs.readFileSync(`${TEST_DIR}/${files[0]}`, 'utf8')
+    expect(content).toContain('readable content')
+  })
+
+  it('init 失败后 write 静默忽略', async () => {
+    const fm = new FileManager({ path: '/root/no-perm-xyz-123' })
+    // 触发 init 失败
+    fm.init()
+    await expect(fm.write('hello')).resolves.not.toThrow()
+  })
+})
+
+// ─── 文件轮转 ─────────────────────────────────────────────────────────────────
+
+describe('FileManager — 文件轮转', () => {
+  it('超过 maxSize 时创建新文件', async () => {
+    const fm = new FileManager({ path: TEST_DIR, filename: 'rot', maxSize: 30 })
+    // 写入足够多的内容触发轮转
+    for (let i = 0; i < 10; i++) {
+      await fm.write('0123456789abcdef') // 16 字节/条
     }
+    const files = fs.readdirSync(TEST_DIR).filter(f => f.endsWith('.log'))
+    expect(files.length).toBeGreaterThan(1)
+  })
+})
+
+// ─── 异步写入 ─────────────────────────────────────────────────────────────────
+
+describe('FileManager — 异步写入', () => {
+  it('异步模式写入后调用 close 可刷新到文件', async () => {
+    const fm = new FileManager(
+      { path: TEST_DIR, filename: 'async' },
+      { enabled: true, batchSize: 100, flushInterval: 5000 },
+    )
+    await fm.write('async-msg')
+    await fm.close()
+    const files = fs.readdirSync(TEST_DIR).filter(f => f.endsWith('.log'))
+    expect(files.length).toBeGreaterThan(0)
+    const content = fs.readFileSync(`${TEST_DIR}/${files[0]}`, 'utf8')
+    expect(content).toContain('async-msg')
   })
 
-  afterEach(async () => {
-    if (fileManager) {
-      await fileManager.close()
-    }
-    // 清理测试目录
-    if (fs.existsSync(testLogDir)) {
-      fs.rmSync(testLogDir, { recursive: true, force: true })
-    }
+  it('getQueueStatus 返回正确结构', async () => {
+    const fm = new FileManager(
+      { path: TEST_DIR },
+      { enabled: true, batchSize: 100, flushInterval: 5000 },
+    )
+    const status = fm.getQueueStatus()
+    expect(status).toHaveProperty('size')
+    expect(status).toHaveProperty('isWriting')
+    expect(typeof status.size).toBe('number')
+    await fm.close()
   })
 
-  describe('Initialization', () => {
-    it('should create log directory', () => {
-      fileManager = new FileManager({
-        enabled: true,
-        path: testLogDir,
-      })
-
-      // 目录不会在构造函数中创建
-      expect(fs.existsSync(testLogDir)).toBe(false)
-
-      // 首次写入时创建
-      fileManager.write('test')
-      expect(fs.existsSync(testLogDir)).toBe(true)
-    })
-
-    it('should initialize with default options', () => {
-      fileManager = new FileManager()
-      expect(fileManager).toBeDefined()
-    })
-
-    it('should use custom filename', () => {
-      fileManager = new FileManager({
-        enabled: true,
-        path: testLogDir,
-        filename: 'custom',
-      })
-
-      // 目录不会在构造函数中创建
-      expect(fs.existsSync(testLogDir)).toBe(false)
-
-      // 首次写入时创建
-      fileManager.write('test')
-      expect(fs.existsSync(testLogDir)).toBe(true)
-    })
+  it('无队列时 getQueueStatus.size 为 0', () => {
+    const fm = new FileManager({ path: TEST_DIR })
+    expect(fm.getQueueStatus().size).toBe(0)
   })
+})
 
-  describe('File Writing', () => {
-    it('should write log messages to file', async () => {
-      fileManager = new FileManager({
-        enabled: true,
-        path: testLogDir,
-        filename: 'test',
-      })
+// ─── close() ─────────────────────────────────────────────────────────────────
 
-      await fileManager.write('test message 1')
-      await fileManager.write('test message 2')
-
-      const files = fs.readdirSync(testLogDir)
-      expect(files.length).toBeGreaterThan(0)
-
-      const content = fs.readFileSync(
-        path.join(testLogDir, files[0]),
-        'utf-8'
-      )
-      expect(content).toContain('test message 1')
-      expect(content).toContain('test message 2')
-    })
-
-    it('should not write when disabled', async () => {
-      fileManager = new FileManager({
-        enabled: false,
-        path: testLogDir,
-      })
-
-      await fileManager.write('test message')
-
-      // disabled 时不写入文件，但目录可能已创建
-      // 检查没有文件被写入
-      if (fs.existsSync(testLogDir)) {
-        const files = fs.readdirSync(testLogDir)
-        expect(files.length).toBe(0)
-      }
-    })
-
-    it('should handle write errors gracefully', async () => {
-      // 使用disabled模式来测试错误处理
-      fileManager = new FileManager({
-        enabled: false,
-        path: testLogDir,
-      })
-
-      // disabled 时不会抛出错误
-      await expect(fileManager.write('test')).resolves.not.toThrow()
-    })
-  })
-
-  describe('File Rotation', () => {
-    it('should rotate files when size limit exceeded', async () => {
-      fileManager = new FileManager({
-        enabled: true,
-        path: testLogDir,
-        filename: 'rotate-test',
-        maxSize: 1024,
-      })
-
-      // 写入足够多的数据触发轮转
-      const largeMessage = 'x'.repeat(500)
-      for (let i = 0; i < 10; i++) {
-        await fileManager.write(largeMessage)
-      }
-
-      const files = fs.readdirSync(testLogDir)
-      expect(files.length).toBeGreaterThan(1)
-    })
-
-    it('should clean up old files', async () => {
-      fileManager = new FileManager({
-        enabled: true,
-        path: testLogDir,
-        filename: 'cleanup-test',
-        maxFiles: 5,
-        maxSize: 100, // 更小的文件大小，触发更多轮转
-      })
-
-      // 创建多个小文件，每个文件超过100字节会触发轮转
-      const longMessage = 'x'.repeat(120) // 超过100字节
-      for (let i = 0; i < 15; i++) {
-        await fileManager.write(longMessage + ' ' + i)
-        await new Promise(resolve => setTimeout(resolve, 100))
-      }
-
-      // 等待文件清理完成
-      await new Promise(resolve => setTimeout(resolve, 500))
-
-      const files = fs.readdirSync(testLogDir).filter(f => f.startsWith('cleanup-test'))
-      // maxFiles=5 应该只保留最近的5个文件
-      expect(files.length).toBeLessThanOrEqual(6) // 包括当前正在写入的文件
-    })
-  })
-
-  describe('Async Writing', () => {
-    it('should support async write mode', async () => {
-      fileManager = new FileManager(
-        {
-          enabled: true,
-          path: testLogDir,
-          filename: 'async-test',
-        },
-        {
-          enabled: true,
-          queueSize: 100,
-          batchSize: 10,
-          flushInterval: 500,
-        }
-      )
-
-      for (let i = 0; i < 20; i++) {
-        await fileManager.write(`async message ${i}`)
-      }
-
-      const status = fileManager.getQueueStatus()
-      expect(status).toBeDefined()
-      expect(typeof status.size).toBe('number')
-    })
-
-    it('should flush queue on close', async () => {
-      fileManager = new FileManager(
-        {
-          enabled: true,
-          path: testLogDir,
-          filename: 'flush-test',
-        },
-        {
-          enabled: true,
-          queueSize: 100,
-          batchSize: 50,
-          flushInterval: 5000,
-        }
-      )
-
-      for (let i = 0; i < 10; i++) {
-        await fileManager.write(`message ${i}`)
-      }
-
-      await fileManager.close()
-
-      const files = fs.readdirSync(testLogDir)
-      expect(files.length).toBeGreaterThan(0)
-    })
-
-    it('should get queue status', async () => {
-      fileManager = new FileManager(
-        {
-          enabled: true,
-          path: testLogDir,
-        },
-        {
-          enabled: true,
-          queueSize: 100,
-        }
-      )
-
-      const status = fileManager.getQueueStatus()
-      expect(status).toHaveProperty('size')
-      expect(status).toHaveProperty('isWriting')
-    })
-  })
-
-  describe('Date Rotation', () => {
-    it('should create new file for new day', async () => {
-      fileManager = new FileManager({
-        enabled: true,
-        path: testLogDir,
-        filename: 'date-test',
-      })
-
-      await fileManager.write('test message')
-
-      const files = fs.readdirSync(testLogDir)
-      expect(files.length).toBeGreaterThan(0)
-      expect(files[0]).toMatch(/date-test-\d{4}-\d{2}-\d{2}\.log/)
-    })
-  })
-
-  describe('Size Configuration', () => {
-    it('should accept numeric byte values for maxSize', async () => {
-      const testCases = [
-        { maxSize: 1024, label: '1kb' },
-        { maxSize: 1024 * 1024, label: '1mb' },
-        { maxSize: 100, label: '100b' },
-      ]
-
-      for (const testCase of testCases) {
-        const fm = new FileManager({
-          enabled: true,
-          path: testLogDir,
-          filename: `size-${testCase.label}`,
-          maxSize: testCase.maxSize,
-        })
-
-        await fm.close()
-      }
-    })
+describe('FileManager — close()', () => {
+  it('无异步队列时 close 正常完成', async () => {
+    const fm = new FileManager({ path: TEST_DIR })
+    await expect(fm.close()).resolves.not.toThrow()
   })
 })

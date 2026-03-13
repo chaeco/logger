@@ -1,36 +1,14 @@
+import * as fs from 'fs'
+import * as path from 'path'
+import * as zlib from 'zlib'
+import { promisify } from 'util'
 import dayjs from 'dayjs'
 import { FileOptions } from '../core/types'
-import { isNodeEnvironment } from '../utils/environment'
 
-// ─── 条件加载 Node.js 模块 ─────────────────────────────────
-let fs: typeof import('fs') | undefined
-let path: typeof import('path') | undefined
-let zlib: typeof import('zlib') | undefined
-let gzip: ((buf: Buffer | string) => Promise<Buffer>) | undefined
-let readFile: ((p: string) => Promise<Buffer>) | undefined
-let writeFile: ((p: string, data: Buffer | string) => Promise<void>) | undefined
-let unlink: ((p: string) => Promise<void>) | undefined
-
-if (isNodeEnvironment) {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    fs = require('fs')
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    path = require('path')
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    zlib = require('zlib')
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { promisify } = require('util')
-    if (zlib) gzip = promisify(zlib.gzip)
-    if (fs) {
-      readFile = promisify(fs.readFile)
-      writeFile = promisify(fs.writeFile)
-      unlink = promisify(fs.unlink)
-    }
-  } catch (e) {
-    console.warn('@chaeco/logger: Failed to load Node.js modules:', e)
-  }
-}
+const gzip = promisify(zlib.gzip)
+const readFile = promisify(fs.readFile)
+const writeFile = promisify(fs.writeFile)
+const unlink = promisify(fs.unlink)
 
 /**
  * Node.js 文件写入器 - 管理日志文件的创建、轮转、压缩与清理。
@@ -80,7 +58,6 @@ export class NodeWriter {
   // ─── 私有方法 ────────────────────────────────────────────
 
   private ensureLogDirectory(): void {
-    if (!fs?.existsSync) return
     try {
       if (!fs.existsSync(this.options.path)) {
         fs.mkdirSync(this.options.path, { recursive: true, mode: 0o755 })
@@ -92,7 +69,6 @@ export class NodeWriter {
   }
 
   private initializeCurrentFile(): void {
-    if (!fs || !path) return
     try {
       this.fileIndex = 0
       // 上界取 maxFiles 的两倍（最少 100），避免目录中存在大量文件时无限扫描
@@ -120,7 +96,6 @@ export class NodeWriter {
   }
 
   private getIndexedFilePath(): string {
-    if (!path) return ''
     const today = dayjs().format('YYYY-MM-DD')
     const base = `${this.options.filename}-${today}`
     return this.fileIndex === 0
@@ -140,16 +115,15 @@ export class NodeWriter {
   }
 
   private cleanupOldFiles(): void {
-    if (!fs || !path) return
     try {
       const files = fs.readdirSync(this.options.path)
         .filter(f => f.startsWith(this.options.filename) && (f.endsWith('.log') || f.endsWith('.log.gz')))
         .map(f => {
-          const stats = fs!.statSync(path!.join(this.options.path, f))
+          const stats = fs.statSync(path.join(this.options.path, f))
           // 优先使用文件名中的日期，避免 mtime 因压缩操作被刷新为近期时间
           const fileDate = f.match(/(\d{4}-\d{2}-\d{2})/)?.[1] ?? null
           const sortKey = fileDate ? new Date(fileDate).getTime() : stats.mtime.getTime()
-          return { name: f, path: path!.join(this.options.path, f), stats, fileDate, sortKey }
+          return { name: f, path: path.join(this.options.path, f), stats, fileDate, sortKey }
         })
         // 按日期降序（最新在前）；用文件名日期而非 mtime 排序，防止旧压缩日志因近期 mtime 排在前
         .sort((a, b) => b.sortKey - a.sortKey)
@@ -167,19 +141,18 @@ export class NodeWriter {
         if (Date.now() - ageBasis > maxAgeMs) toDelete.add(f.path)
       })
 
-      toDelete.forEach(p => { try { fs!.unlinkSync(p) } catch { /* ignore */ } })
+      toDelete.forEach(p => { try { fs.unlinkSync(p) } catch { /* ignore */ } })
 
       if (this.options.compress) this.compressOldLogs().catch(() => { /* silent */ })
     } catch { /* ignore cleanup errors */ }
   }
 
   private async compressOldLogs(): Promise<void> {
-    if (!fs || !path || !readFile || !writeFile || !unlink || !gzip) return
     const today = dayjs().format('YYYY-MM-DD')
     try {
       const files = fs.readdirSync(this.options.path)
         .filter(f => f.startsWith(this.options.filename) && f.endsWith('.log') && !f.endsWith('.log.gz'))
-        .map(f => ({ name: f, path: path!.join(this.options.path, f) }))
+        .map(f => ({ name: f, path: path.join(this.options.path, f) }))
 
       for (const file of files) {
         const dateMatch = file.name.match(/(\d{4}-\d{2}-\d{2})/)
@@ -198,14 +171,12 @@ export class NodeWriter {
   }
 
   private checkDateRotation(): void {
-    if (!path) return
     const today = dayjs().format('YYYY-MM-DD')
     const m = path.basename(this.currentFilePath).match(/(\d{4}-\d{2}-\d{2})/)
     if ((m?.[1] ?? null) !== today) this.initializeCurrentFile()
   }
 
   private async appendToFileWithRetry(content: string): Promise<void> {
-    if (!fs) { console.warn('@chaeco/logger: fs module not available'); return }
     const { retryCount, retryDelay } = this.options
     let lastError: Error | undefined
     for (let i = 0; i <= retryCount; i++) {

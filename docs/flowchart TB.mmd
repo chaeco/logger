@@ -1,0 +1,59 @@
+flowchart TB
+    subgraph API["API 层"]
+        direction LR
+        L["Logger\n主类入口"]
+        IDX["index.ts\nlogger 默认实例 · 类型导出"]
+    end
+
+    subgraph CORE["核心层"]
+        direction LR
+        TYPES["types.ts\nLogLevel · LogEntry\nLoggerOptions · LoggerEvent\n...共 8 个接口/类型"]
+    end
+
+    subgraph FORMAT["格式化层"]
+        direction LR
+        FMT["LogFormatter\nformatMessage\nformatConsoleMessage"]
+        CU["ColorUtils\nANSI 着色（静态）"]
+        CI["CallerInfoHelper\n调用栈解析 + LRU 缓存"]
+    end
+
+    subgraph FILE["文件层"]
+        direction LR
+        FM["FileManager\n门面 · 懒初始化"]
+        AQ["AsyncQueue\n批量缓冲 · overflow 策略"]
+        NW["NodeWriter\n原始 I/O · 轮转 · 压缩 · 清理"]
+    end
+
+    subgraph RUNTIME["运行时层（Node.js）"]
+        direction LR
+        FSN["fs\nappendFileSync · mkdirSync"]
+        ZL["zlib\ngzip 压缩"]
+        DAY["dayjs\n时间戳格式化"]
+        CHK["chalk\nANSI 终端颜色"]
+    end
+
+    IDX --> L
+    L --> TYPES
+    L --> FMT
+    L --> CI
+    L --> FM
+
+    FMT --> CU
+    FMT --> TYPES
+
+    FM --> AQ
+    FM --> NW
+    AQ --> NW
+
+    NW --> FSN
+    NW --> ZL
+    NW --> DAY
+    FMT --> DAY
+    L --> DAY
+    CU --> CHK
+
+    style API      fill:#dbeafe,stroke:#3b82f6,color:#1e3a5f
+    style CORE     fill:#ede9fe,stroke:#7c3aed,color:#2e1065
+    style FORMAT   fill:#dcfce7,stroke:#16a34a,color:#14532d
+    style FILE     fill:#fef9c3,stroke:#ca8a04,color:#713f12
+    style RUNTIME  fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
