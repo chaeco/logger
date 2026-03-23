@@ -6,5 +6,9 @@
   },
   "github.copilot.enable": {
     "*": true
+  },
+  "eslint.validate": ["typescript", "typescriptreact"],
+  "[typescript]": {
+    "editor.defaultFormatter": "dbaeumer.vscode-eslint"
   }
 }

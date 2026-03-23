@@ -1,4 +1,5 @@
 import * as fs from 'fs'
+import { NodeWriter } from '../src/file/node-writer'
 import { FileManager } from '../src/file/file-manager'
 
 const TEST_DIR = './test-logs-fm'
@@ -85,7 +86,7 @@ describe('FileManager — init()', () => {
   it('nodeWriter.init 抛错时捕获并设置 initError', () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => { })
     const original = jest
-      .spyOn(require('../src/file/node-writer').NodeWriter.prototype, 'init')
+      .spyOn(NodeWriter.prototype, 'init')
       .mockImplementation(() => { throw 'boom' })
     const fm = new FileManager({ path: TEST_DIR })
     fm.init()
@@ -98,7 +99,7 @@ describe('FileManager — init()', () => {
   it('nodeWriter.init 抛出 Error 分支覆盖', () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => { })
     const original = jest
-      .spyOn(require('../src/file/node-writer').NodeWriter.prototype, 'init')
+      .spyOn(NodeWriter.prototype, 'init')
       .mockImplementation(() => { throw new Error('boom') })
     const fm = new FileManager({ path: TEST_DIR })
     fm.init()

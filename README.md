@@ -2,12 +2,12 @@
 
 A feature-rich, high-performance logging library for Node.js.
 
-[![npm version](https://img.shields.io/badge/version-0.1.6-blue.svg)](https://github.com/chaeco/logger)
+[![npm version](https://img.shields.io/badge/version-0.1.9-blue.svg)](https://github.com/chaeco/logger)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-3178c6.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D16-339933.svg)](https://nodejs.org/)
 [![Build](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://github.com/chaeco/logger)
-[![Coverage](https://img.shields.io/badge/coverage-77%20tests-brightgreen.svg)](https://github.com/chaeco/logger)
+[![Coverage](https://img.shields.io/badge/coverage-162%20tests-brightgreen.svg)](https://github.com/chaeco/logger)
 
 [English](README.md) | [中文](README.zh-CN.md)
 
@@ -78,6 +78,18 @@ const logger = new Logger({
 });
 ```
 
+#### File Retention Semantics
+
+- `maxFiles` is a hard cap on physical files (`.log` + `.log.gz`) under the same `path + filename` scope.
+- When `compress: true`, old same-day shards are merged into one daily `.log.gz`, then count-based pruning runs.
+- Count pruning prioritizes newer dates and newer shards; the current active file is preserved.
+
+#### Process Boundary
+
+- In a single process, parent logger and `child()` loggers share one file writer.
+- Multi-process writes (different Node processes writing to the same `path + filename`) are **not guaranteed** to be lossless or strictly ordered.
+- For clustered/process-manager deployments, use unique `filename` per process (or include PID) and aggregate upstream.
+
 ### Child Logger
 
 ```typescript
@@ -87,6 +99,8 @@ dbLogger.info('Connected');       // logged as [api-service:db]
 const reqLogger = logger.child('request');
 reqLogger.warn('Slow response', { duration: 3200 });
 ```
+
+> Child loggers share the same file output pipeline with the parent logger in the same process.
 
 ### Event Hooks
 

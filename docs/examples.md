@@ -45,7 +45,7 @@ log.info('服务初始化完成', { port: 3000 })
 
 ## 子 Logger
 
-子 Logger 继承父级的级别、文件配置、格式设置，名称格式为 `parent:child`。
+子 Logger 继承父级的级别、文件配置、格式设置，名称格式为 `parent:child`。**同一进程内，子 Logger 与父 Logger 共享同一文件写入管线**，不会产生重复写入或文件句柄竞争。
 
 ```typescript
 const dbLogger = log.child('db')

@@ -84,6 +84,16 @@ const log = new Logger({
 | `retryCount` | 写入失败重试次数 | `3`（默认） |
 | `retryDelay` | 重试间隔基数（毫秒），实际延迟 = `retryDelay × attempt` | `100`（默认） |
 
+`maxFiles` 语义补充：
+- 统计对象是物理文件总数（`.log` + `.log.gz`）。
+- 在 `compress: true` 下，先压缩归档，再执行数量裁剪。
+- 数量裁剪优先保留新日期和新分片，并保护当前活跃文件。
+
+多进程边界：
+- 单进程（含 child logger）是共享同一文件写入器。
+- 多进程同时写同一 `path + filename` 不保证严格有序与零丢失。
+- 建议使用 `filename: \`app-${process.pid}\`` 等方式按进程拆分。
+
 ---
 
 ## 异步写入参数选型

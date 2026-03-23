@@ -2,12 +2,12 @@
 
 一个功能丰富、高性能的 Node.js 日志库。
 
-[![npm version](https://img.shields.io/badge/版本-0.1.6-blue.svg)](https://github.com/chaeco/logger)
+[![npm version](https://img.shields.io/badge/版本-0.1.9-blue.svg)](https://github.com/chaeco/logger)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-3178c6.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D16-339933.svg)](https://nodejs.org/)
 [![Build](https://img.shields.io/badge/构建-通过-brightgreen.svg)](https://github.com/chaeco/logger)
-[![Coverage](https://img.shields.io/badge/测试-77%20tests-brightgreen.svg)](https://github.com/chaeco/logger)
+[![Coverage](https://img.shields.io/badge/测试-162%20tests-brightgreen.svg)](https://github.com/chaeco/logger)
 
 [English](README.md) | 中文
 
@@ -81,6 +81,18 @@ const logger = new Logger({
 });
 ```
 
+#### 文件保留语义
+
+- `maxFiles` 是同一 `path + filename` 范围内物理文件总数上限（`.log` + `.log.gz`）。
+- 当 `compress: true` 时，会先把同一天旧分片合并为一个 `.log.gz`，再执行按数量裁剪。
+- 按数量裁剪会优先保留更新日期与更新分片，且会保护当前活跃写入文件。
+
+#### 进程边界说明
+
+- 在单进程内，父 logger 与 `child()` logger 共享同一条文件写入管线。
+- 多进程同时写同一个 `path + filename` 时，不保证严格有序或零丢失。
+- 在 cluster / PM2 等场景，建议按进程区分 `filename`（如追加 PID），再由上游系统聚合。
+
 ### 子 Logger
 
 ```typescript
@@ -90,6 +102,8 @@ dbLogger.info('已连接');          // 输出名称为 [api-service:db]
 const reqLogger = logger.child('request');
 reqLogger.warn('响应较慢', { duration: 3200 });
 ```
+
+> 同一进程内，子 logger 与父 logger 共享文件输出管线。
 
 ### 事件钩子
 
@@ -116,10 +130,10 @@ process.on('SIGTERM', async () => {
 
 ## 文档
 
-- [详细示例](docs/zh-CN/examples.md)
-- [性能优化](docs/zh-CN/performance.md)
-- [生产部署最佳实践](docs/zh-CN/production.md)
-- [更新日志](docs/zh-CN/CHANGELOG.md)
+- [详细示例](docs/examples.md)
+- [性能优化](docs/performance.md)
+- [生产部署最佳实践](docs/production.md)
+- [更新日志](CHANGELOG.md)
 
 ## 许可证
 

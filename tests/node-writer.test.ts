@@ -172,7 +172,7 @@ describe('NodeWriter — writeBatch()', () => {
   it('writeBatch 在超过 maxSize 时触发轮转', async () => {
     const w = new NodeWriter(makeOptions({ filename: 'batchrot', maxSize: 1 }))
     w.init()
-    ;(w as any).currentFileSize = 2
+      ; (w as any).currentFileSize = 2
     await w.writeBatch(['x'])
     const current = (w as any).currentFilePath as string
     expect(current.includes('.1.log')).toBe(true)
@@ -400,7 +400,7 @@ describe('NodeWriter — 排序与写入失败', () => {
     fs.utimesSync(f1, t1, t1)
     fs.utimesSync(f2, t2, t2)
     const w = new NodeWriter(makeOptions({ filename: 'sort' }))
-    ;(w as any).currentFilePath = path.join(TEST_DIR, 'none')
+      ; (w as any).currentFilePath = path.join(TEST_DIR, 'none')
     const list = (w as any).listManagedFiles()
     expect(list.length).toBe(2)
   })
@@ -416,7 +416,7 @@ describe('NodeWriter — 排序与写入失败', () => {
     fs.utimesSync(f1, t, t)
     fs.utimesSync(f2, t, t)
     const w = new NodeWriter(makeOptions({ filename: 'sort2' }))
-    ;(w as any).currentFilePath = path.join(TEST_DIR, 'none')
+      ; (w as any).currentFilePath = path.join(TEST_DIR, 'none')
     const list = (w as any).listManagedFiles()
     expect(list.length).toBe(2)
   })
@@ -445,7 +445,7 @@ describe('NodeWriter — 排序与写入失败', () => {
   it('appendToFileWithRetry 第一次失败后会重试并成功', async () => {
     const w = new NodeWriter(makeOptions({ filename: 'retry', retryCount: 1, retryDelay: 1 }))
     w.init()
-    ;(w as any).currentFilePath = TEST_DIR
+      ; (w as any).currentFilePath = TEST_DIR
     await (w as any).appendToFileWithRetry('ok')
     const files = fs.readdirSync(TEST_DIR).filter(f => f.endsWith('.log'))
     expect(files.length).toBeGreaterThan(0)
@@ -473,16 +473,16 @@ describe('NodeWriter — 排序与写入失败', () => {
     fs.utimesSync(f, past, past)
     const list = (w as any).listManagedFiles()
     expect(list[0].fileDate).toBeNull()
-    ;(w as any).pruneExpiredFiles()
+      ; (w as any).pruneExpiredFiles()
     expect(fs.existsSync(f)).toBe(false)
   })
 
   it('checkDateRotation 在无日期路径时触发重置', () => {
     const w = new NodeWriter(makeOptions({ filename: 'chk' }))
-    ;(w as any).currentFilePath = 'nodate.log'
+      ; (w as any).currentFilePath = 'nodate.log'
     const initSpy = jest.spyOn(w as any, 'initializeCurrentFile').mockImplementation(() => { })
     const cleanSpy = jest.spyOn(w as any, 'cleanupOldFiles').mockImplementation(() => { })
-    ;(w as any).checkDateRotation()
+      ; (w as any).checkDateRotation()
     expect(initSpy).toHaveBeenCalled()
     expect(cleanSpy).toHaveBeenCalled()
     initSpy.mockRestore()

@@ -5,9 +5,6 @@ import { promisify } from 'util'
 import { formatNow } from '../utils/date-utils'
 import { FileOptions } from '../core/types'
 
-const gzip = promisify(zlib.gzip)
-const readFile = promisify(fs.readFile)
-const writeFile = promisify(fs.writeFile)
 const unlink = promisify(fs.unlink)
 
 /**
@@ -20,6 +17,10 @@ export class NodeWriter {
   private currentFileSize = 0
   private fileIndex = 0
   private _initError: Error | undefined
+  // 串行化压缩任务：下一次压缩等待上一次完成后再起，避免并发读写竞态
+  private compressPromise: Promise<void> = Promise.resolve()
+
+  private static readonly ONE_DAY_MS = 24 * 60 * 60 * 1000
 
   /** 初始化错误（只读），如果初始化失败则值不为 undefined */
   get initError(): Error | undefined { return this._initError }
@@ -35,6 +36,7 @@ export class NodeWriter {
   init(): void {
     this.ensureLogDirectory()
     this.initializeCurrentFile()
+    this.cleanupOldFiles()
   }
 
   /** 写入单条消息（内部使用 appendFileSync，通过重试逻辑提供可靠性） */
@@ -116,34 +118,18 @@ export class NodeWriter {
 
   private cleanupOldFiles(): void {
     try {
-      const files = fs.readdirSync(this.options.path)
-        .filter(f => f.startsWith(this.options.filename) && (f.endsWith('.log') || f.endsWith('.log.gz')))
-        .map(f => {
-          const stats = fs.statSync(path.join(this.options.path, f))
-          // 优先使用文件名中的日期，避免 mtime 因压缩操作被刷新为近期时间
-          const fileDate = f.match(/(\d{4}-\d{2}-\d{2})/)?.[1] ?? null
-          const sortKey = fileDate ? new Date(fileDate).getTime() : stats.mtime.getTime()
-          return { name: f, path: path.join(this.options.path, f), stats, fileDate, sortKey }
-        })
-        // 按日期降序（最新在前）；用文件名日期而非 mtime 排序，防止旧压缩日志因近期 mtime 排在前
-        .sort((a, b) => b.sortKey - a.sortKey)
+      this.pruneExpiredFiles()
 
-      // 超出 maxFiles 的文件：先收集待删集合，避免与过期清理产生重复 unlinkSync 调用
-      const toDelete = new Set<string>()
-      if (files.length > this.options.maxFiles)
-        files.slice(this.options.maxFiles).forEach(f => toDelete.add(f.path))
-
-      const maxAgeMs = this.options.maxAge * 24 * 60 * 60 * 1000
-      files.forEach(f => {
-        // 同 compressOldLogs：用文件名日期判断过期，而非 mtime。
-        // .log.gz 的 mtime 是压缩时间（近期），用 mtime 会使旧日志看起来永远"新"。
-        const ageBasis = f.fileDate ? new Date(f.fileDate).getTime() : f.stats.mtime.getTime()
-        if (Date.now() - ageBasis > maxAgeMs) toDelete.add(f.path)
-      })
-
-      toDelete.forEach(p => { try { fs.unlinkSync(p) } catch { /* ignore */ } })
-
-      if (this.options.compress) this.compressOldLogs().catch(() => { /* silent */ })
+      if (this.options.compress) {
+        this.compressPromise = this.compressPromise
+          .then(async () => {
+            await this.compressOldLogs()
+            this.pruneFilesByCount()
+          })
+          .catch(() => { /* silent */ })
+      } else {
+        this.pruneFilesByCount()
+      }
     } catch { /* ignore cleanup errors */ }
   }
 
@@ -154,26 +140,175 @@ export class NodeWriter {
         .filter(f => f.startsWith(this.options.filename) && f.endsWith('.log') && !f.endsWith('.log.gz'))
         .map(f => ({ name: f, path: path.join(this.options.path, f) }))
 
+      // 按日期分组，跳过今天和当前正在写入的文件
+      const byDate = new Map<string, Array<{ name: string; path: string }>>()
       for (const file of files) {
-        const dateMatch = file.name.match(/(\d{4}-\d{2}-\d{2})/)
-        const fileDate = dateMatch?.[1]
-        // 仅压缩文件名日期不是今天的文件，并排除当前写入文件。
-        // 不依赖 mtime：跨午夜写入的昨日文件 mtime < 24h 会导致 mtime 条件失效。
-        if (fileDate && fileDate !== today && file.path !== this.currentFilePath) {
-          try {
-            const compressed = await gzip(await readFile(file.path))
-            await writeFile(file.path + '.gz', compressed)
-            await unlink(file.path)
-          } catch { /* compress fails silently */ }
+        const fileDate = file.name.match(/(\d{4}-\d{2}-\d{2})/)?.[1]
+        if (!fileDate || fileDate === today || file.path === this.currentFilePath) continue
+        if (!byDate.has(fileDate)) byDate.set(fileDate, [])
+        byDate.get(fileDate)!.push(file)
+      }
+
+      for (const [fileDate, dateFiles] of byDate) {
+        // 按分片索引升序排列，保证内容时序正确
+        // app-date.log → 0，app-date.1.log → 1，app-date.72.log → 72
+        dateFiles.sort((a, b) => {
+          const ai = parseInt(a.name.match(/\d{4}-\d{2}-\d{2}\.(\d+)\.log$/)?.[1] ?? '0')
+          const bi = parseInt(b.name.match(/\d{4}-\d{2}-\d{2}\.(\d+)\.log$/)?.[1] ?? '0')
+          return ai - bi
+        })
+
+        const gzPath = path.join(this.options.path, `${this.options.filename}-${fileDate}.log.gz`)
+        const tmpPath = `${gzPath}.tmp`
+        const hasExistingArchive = fs.existsSync(gzPath)
+        const sourceArchivePath = hasExistingArchive ? `${gzPath}.bak` : undefined
+        try {
+          if (hasExistingArchive && sourceArchivePath) fs.renameSync(gzPath, sourceArchivePath)
+          // 流式压缩：每个分片逐块读取写入 gzip，不在内存中累积全部内容
+          await this.streamCompressDayFiles(dateFiles, tmpPath, sourceArchivePath)
+          // 原子替换：先写 .tmp，成功后 rename，保证中途失败不损坏目标
+          fs.renameSync(tmpPath, gzPath)
+          if (sourceArchivePath) {
+            try { fs.unlinkSync(sourceArchivePath) } catch { /* ignore */ }
+          }
+          // rename 成功后再删除原始分片
+          for (const file of dateFiles) {
+            try { await unlink(file.path) } catch { /* ignore */ }
+          }
+        } catch {
+          // 清理残留临时文件
+          try { fs.unlinkSync(tmpPath) } catch { /* ignore */ }
+          if (sourceArchivePath && fs.existsSync(sourceArchivePath) && !fs.existsSync(gzPath)) {
+            try { fs.renameSync(sourceArchivePath, gzPath) } catch { /* ignore */ }
+          }
         }
       }
     } catch { /* ignore */ }
   }
 
+  private listManagedFiles(): Array<{
+    name: string
+    path: string
+    stats: fs.Stats
+    fileDate: string | null
+    sortKey: number
+    shardIndex: number
+    isCurrent: boolean
+  }> {
+    return fs.readdirSync(this.options.path)
+      .filter(f => f.startsWith(this.options.filename) && (f.endsWith('.log') || f.endsWith('.log.gz')))
+      .map(f => {
+        const stats = fs.statSync(path.join(this.options.path, f))
+        const filePath = path.join(this.options.path, f)
+        const fileDate = f.match(/(\d{4}-\d{2}-\d{2})/)?.[1] ?? null
+        const sortKey = fileDate ? new Date(fileDate).getTime() : stats.mtime.getTime()
+        const shardIndex = this.getShardIndex(f)
+        return {
+          name: f,
+          path: filePath,
+          stats,
+          fileDate,
+          sortKey,
+          shardIndex,
+          isCurrent: filePath === this.currentFilePath,
+        }
+      })
+      .sort((a, b) => {
+        if (b.sortKey !== a.sortKey) return b.sortKey - a.sortKey
+        if (a.isCurrent !== b.isCurrent) return a.isCurrent ? -1 : 1
+        if (b.shardIndex !== a.shardIndex) return b.shardIndex - a.shardIndex
+        if (b.stats.mtime.getTime() !== a.stats.mtime.getTime()) return b.stats.mtime.getTime() - a.stats.mtime.getTime()
+        return b.name.localeCompare(a.name)
+      })
+  }
+
+  private getShardIndex(fileName: string): number {
+    if (fileName.endsWith('.log.gz')) return Number.MAX_SAFE_INTEGER
+    return parseInt(fileName.match(/\d{4}-\d{2}-\d{2}\.(\d+)\.log$/)?.[1] ?? '0')
+  }
+
+  private pruneExpiredFiles(): void {
+    const maxAgeMs = this.options.maxAge * NodeWriter.ONE_DAY_MS
+    for (const file of this.listManagedFiles()) {
+      const ageBasis = file.fileDate ? new Date(file.fileDate).getTime() : file.stats.mtime.getTime()
+      if (Date.now() - ageBasis > maxAgeMs) {
+        try { fs.unlinkSync(file.path) } catch { /* ignore */ }
+      }
+    }
+  }
+
+  private pruneFilesByCount(): void {
+    const files = this.listManagedFiles()
+    if (files.length <= this.options.maxFiles) return
+    for (const file of files.slice(this.options.maxFiles)) {
+      try { fs.unlinkSync(file.path) } catch { /* ignore */ }
+    }
+  }
+
+  /**
+   * 将多个分片文件流式合并压缩为单个 gzip 文件。
+   * 逐块读取，内存占用与分片大小无关，适合大文件场景。
+   */
+  private streamCompressDayFiles(
+    dateFiles: Array<{ name: string; path: string }>,
+    outPath: string,
+    existingArchivePath?: string,
+  ): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const gzipStream = zlib.createGzip()
+      const outStream = fs.createWriteStream(outPath)
+      const sources: Array<{ path: string; compressed: boolean }> = []
+
+      if (existingArchivePath) sources.push({ path: existingArchivePath, compressed: true })
+      dateFiles.forEach(file => sources.push({ path: file.path, compressed: false }))
+
+      gzipStream.pipe(outStream)
+      outStream.on('finish', resolve)
+      outStream.on('error', reject)
+      gzipStream.on('error', reject)
+
+      let i = 0
+      const pipeNext = (): void => {
+        if (i >= sources.length) {
+          gzipStream.end()
+          return
+        }
+        const source = sources[i++]
+        let lastByte: number | null = null
+        const readStream = fs.createReadStream(source.path)
+        let sourceStream: NodeJS.ReadableStream = readStream
+
+        readStream.on('error', reject)
+        if (source.compressed) {
+          const gunzipStream = zlib.createGunzip()
+          gunzipStream.on('error', reject)
+          sourceStream = readStream.pipe(gunzipStream)
+        }
+
+        sourceStream.on('data', (chunk: Buffer | string) => {
+          const buf = typeof chunk === 'string' ? Buffer.from(chunk) : chunk
+          if (buf.length > 0) lastByte = buf[buf.length - 1]
+        })
+        sourceStream.on('end', () => {
+          // 确保每个分片末尾有换行，避免拼接时相邻行粘连
+          if (lastByte !== null && lastByte !== 0x0a && i < sources.length) {
+            gzipStream.write(Buffer.from('\n'))
+          }
+          pipeNext()
+        })
+        sourceStream.pipe(gzipStream, { end: false })
+      }
+      pipeNext()
+    })
+  }
+
   private checkDateRotation(): void {
     const today = formatNow('YYYY-MM-DD')
     const m = path.basename(this.currentFilePath).match(/(\d{4}-\d{2}-\d{2})/)
-    if ((m?.[1] ?? null) !== today) this.initializeCurrentFile()
+    if ((m?.[1] ?? null) !== today) {
+      this.initializeCurrentFile()
+      this.cleanupOldFiles()
+    }
   }
 
   private async appendToFileWithRetry(content: string): Promise<void> {
