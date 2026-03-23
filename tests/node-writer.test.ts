@@ -1,5 +1,6 @@
 import * as fs from 'fs'
 import * as path from 'path'
+import * as zlib from 'zlib'
 import { NodeWriter } from '../src/file/node-writer'
 
 const TEST_DIR = './test-logs-nw'
@@ -27,8 +28,38 @@ function cleanup() {
   if (fs.existsSync(TEST_DIR)) fs.rmSync(TEST_DIR, { recursive: true, force: true })
 }
 
+function getRecentPastDate(): string {
+  const date = new Date(Date.now() - 24 * 60 * 60 * 1000)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function getTodayDate(): string {
+  const date = new Date()
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+async function waitFor(condition: () => boolean, timeoutMs = 2000) {
+  const started = Date.now()
+  while (Date.now() - started < timeoutMs) {
+    if (condition()) return
+    await new Promise(resolve => setTimeout(resolve, 20))
+  }
+  throw new Error('Timed out waiting for condition')
+}
+
 beforeEach(cleanup)
 afterEach(cleanup)
+
+type NodeWriterInternals = {
+  currentFilePath: string
+  pruneFilesByCount(): void
+}
 
 // ─── init() ───────────────────────────────────────────────────────────────────
 
@@ -46,15 +77,49 @@ describe('NodeWriter — init()', () => {
   })
 
   it('目录不可写时 initError 不为 undefined', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => { })
     const w = new NodeWriter(makeOptions({ path: '/root/no-perm-xyz-nw' }))
     w.init()
     expect(w.initError).toBeDefined()
+    warn.mockRestore()
   })
+
 
   it('重复调用 init 不抛出', () => {
     const w = new NodeWriter(makeOptions())
     w.init()
     expect(() => w.init()).not.toThrow()
+  })
+
+  it('initializeCurrentFile 异常时 initError 被设置', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => { })
+    jest.isolateModules(() => {
+      jest.doMock('fs', () => {
+        const real = jest.requireActual('fs')
+        return {
+          ...real,
+          existsSync: () => true,
+          statSync: () => { throw new Error('stat fail') },
+        }
+      })
+      const { NodeWriter: MockedNodeWriter } = require('../src/file/node-writer')
+      const w = new MockedNodeWriter(makeOptions({ filename: 'err' }))
+      w.init()
+      expect(w.initError).toBeDefined()
+    })
+    jest.resetModules()
+    warn.mockRestore()
+  })
+
+  it('已有文件且超过 maxSize 时初始化会切换到新分片', () => {
+    const opts = makeOptions({ filename: 'rotate-init', maxSize: 1 })
+    const w = new NodeWriter(opts)
+    const today = getTodayDate()
+    fs.mkdirSync(TEST_DIR, { recursive: true })
+    fs.writeFileSync(path.join(TEST_DIR, `rotate-init-${today}.log`), 'xx')
+    w.init()
+    const current = (w as any).currentFilePath as string
+    expect(current.endsWith(`rotate-init-${today}.1.log`)).toBe(true)
   })
 })
 
@@ -103,6 +168,15 @@ describe('NodeWriter — writeBatch()', () => {
     expect(content).toContain('beta')
     expect(content).toContain('gamma')
   })
+
+  it('writeBatch 在超过 maxSize 时触发轮转', async () => {
+    const w = new NodeWriter(makeOptions({ filename: 'batchrot', maxSize: 1 }))
+    w.init()
+    ;(w as any).currentFileSize = 2
+    await w.writeBatch(['x'])
+    const current = (w as any).currentFilePath as string
+    expect(current.includes('.1.log')).toBe(true)
+  })
 })
 
 // ─── 文件轮转 ─────────────────────────────────────────────────────────────────
@@ -127,6 +201,176 @@ describe('NodeWriter — 文件轮转', () => {
     const files = fs.readdirSync(TEST_DIR).filter(f => f.endsWith('.log'))
     expect(files.length).toBeLessThanOrEqual(3) // maxFiles + 当前文件
   })
+
+  it('日期切换时会重新初始化当前文件', async () => {
+    const w = new NodeWriter(makeOptions({ filename: 'date' }))
+    w.init()
+    const yesterday = getRecentPastDate()
+    const internals = w as unknown as { currentFilePath: string }
+    internals.currentFilePath = path.join(TEST_DIR, `date-${yesterday}.log`)
+    fs.writeFileSync(internals.currentFilePath, 'old\n')
+
+    await w.write('today')
+
+    const files = fs.readdirSync(TEST_DIR).filter(f => f.endsWith('.log'))
+    const today = getTodayDate()
+    expect(files.some(f => f.includes(`date-${today}`))).toBe(true)
+  })
+})
+
+// ─── 压缩与清理 ─────────────────────────────────────────────────────────────
+
+describe('NodeWriter — 压缩与清理', () => {
+  it('压缩发生在 maxFiles 清理之前，确保同日分片不会被提前删掉', async () => {
+    const date = getRecentPastDate()
+    fs.mkdirSync(TEST_DIR, { recursive: true })
+    fs.writeFileSync(path.join(TEST_DIR, `cmp-${date}.log`), 'alpha')
+    fs.writeFileSync(path.join(TEST_DIR, `cmp-${date}.1.log`), 'beta')
+    fs.writeFileSync(path.join(TEST_DIR, `cmp-${date}.2.log`), 'gamma')
+
+    const w = new NodeWriter(makeOptions({ filename: 'cmp', compress: true, maxFiles: 1 }))
+    w.init()
+
+    await waitFor(() => fs.existsSync(path.join(TEST_DIR, `cmp-${date}.log.gz`)))
+
+    const gz = fs.readFileSync(path.join(TEST_DIR, `cmp-${date}.log.gz`))
+    const content = zlib.gunzipSync(gz).toString('utf8')
+
+    expect(content).toBe('alpha\nbeta\ngamma')
+    expect(fs.existsSync(path.join(TEST_DIR, `cmp-${date}.log`))).toBe(false)
+    expect(fs.existsSync(path.join(TEST_DIR, `cmp-${date}.1.log`))).toBe(false)
+    expect(fs.existsSync(path.join(TEST_DIR, `cmp-${date}.2.log`))).toBe(false)
+  })
+
+  it('已有 .log.gz 时会保留原归档内容并追加新分片', async () => {
+    const date = getRecentPastDate()
+    fs.mkdirSync(TEST_DIR, { recursive: true })
+    fs.writeFileSync(
+      path.join(TEST_DIR, `merge-${date}.log.gz`),
+      zlib.gzipSync(Buffer.from('first\n')),
+    )
+    fs.writeFileSync(path.join(TEST_DIR, `merge-${date}.1.log`), 'second\n')
+
+    const w = new NodeWriter(makeOptions({ filename: 'merge', compress: true, maxFiles: 10 }))
+    w.init()
+
+    await waitFor(() => !fs.existsSync(path.join(TEST_DIR, `merge-${date}.1.log`)))
+
+    const gz = fs.readFileSync(path.join(TEST_DIR, `merge-${date}.log.gz`))
+    const content = zlib.gunzipSync(gz).toString('utf8')
+
+    expect(content).toBe('first\nsecond\n')
+  })
+
+  it('空分片不会导致额外空行', async () => {
+    const date = getRecentPastDate()
+    fs.mkdirSync(TEST_DIR, { recursive: true })
+    fs.writeFileSync(path.join(TEST_DIR, `empty-${date}.log`), 'alpha')
+    fs.writeFileSync(path.join(TEST_DIR, `empty-${date}.1.log`), '')
+    fs.writeFileSync(path.join(TEST_DIR, `empty-${date}.2.log`), 'beta\n')
+
+    const w = new NodeWriter(makeOptions({ filename: 'empty', compress: true, maxFiles: 10 }))
+    w.init()
+
+    await waitFor(() => fs.existsSync(path.join(TEST_DIR, `empty-${date}.log.gz`)))
+
+    const gz = fs.readFileSync(path.join(TEST_DIR, `empty-${date}.log.gz`))
+    const content = zlib.gunzipSync(gz).toString('utf8')
+
+    expect(content).toBe('alpha\nbeta\n')
+  })
+
+  it('maxFiles 裁剪同日分片时保留当前活跃文件和最新分片', () => {
+    const date = getTodayDate()
+    fs.mkdirSync(TEST_DIR, { recursive: true })
+    fs.writeFileSync(path.join(TEST_DIR, `keep-${date}.log`), 'base\n')
+    fs.writeFileSync(path.join(TEST_DIR, `keep-${date}.1.log`), 'older\n')
+    fs.writeFileSync(path.join(TEST_DIR, `keep-${date}.2.log`), 'current\n')
+
+    const w = new NodeWriter(makeOptions({ filename: 'keep', maxFiles: 2 }))
+    w.init()
+    const internals = w as unknown as NodeWriterInternals
+    internals.currentFilePath = path.join(TEST_DIR, `keep-${date}.2.log`)
+    internals.pruneFilesByCount()
+
+    expect(fs.existsSync(path.join(TEST_DIR, `keep-${date}.2.log`))).toBe(true)
+    expect(fs.existsSync(path.join(TEST_DIR, `keep-${date}.1.log`))).toBe(true)
+    expect(fs.existsSync(path.join(TEST_DIR, `keep-${date}.log`))).toBe(false)
+  })
+
+  it('maxAge=0 时会删除过期文件', () => {
+    const date = getRecentPastDate()
+    fs.mkdirSync(TEST_DIR, { recursive: true })
+    fs.writeFileSync(path.join(TEST_DIR, `age-${date}.log`), 'old\n')
+
+    const w = new NodeWriter(makeOptions({ filename: 'age', maxAge: 0 }))
+    w.init()
+
+    expect(fs.existsSync(path.join(TEST_DIR, `age-${date}.log`))).toBe(false)
+  })
+
+  it('compressOldLogs 会跳过今天的文件', async () => {
+    const date = getTodayDate()
+    fs.mkdirSync(TEST_DIR, { recursive: true })
+    fs.writeFileSync(path.join(TEST_DIR, `today-${date}.log`), 't')
+    const w = new NodeWriter(makeOptions({ filename: 'today', compress: true }))
+    await (w as any).compressOldLogs()
+    expect(fs.existsSync(path.join(TEST_DIR, `today-${date}.log.gz`))).toBe(false)
+  })
+
+  it('streamCompressDayFiles 支持已有归档并补齐换行', async () => {
+    fs.mkdirSync(TEST_DIR, { recursive: true })
+    const oldGz = path.join(TEST_DIR, 'sc.gz')
+    fs.writeFileSync(oldGz, zlib.gzipSync(Buffer.from('first')))
+    const f1 = path.join(TEST_DIR, 'd1.log')
+    const f2 = path.join(TEST_DIR, 'd2.log')
+    fs.writeFileSync(f1, 'second')
+    fs.writeFileSync(f2, 'third')
+    const out = path.join(TEST_DIR, 'out.gz')
+    const w = new NodeWriter(makeOptions({ filename: 'sc' }))
+    await (w as any).streamCompressDayFiles(
+      [{ name: 'd1.log', path: f1 }, { name: 'd2.log', path: f2 }],
+      out,
+      oldGz,
+    )
+    const content = zlib.gunzipSync(fs.readFileSync(out)).toString('utf8')
+    expect(content).toBe('first\nsecond\nthird')
+  })
+
+  it('压缩时按分片索引升序合并', async () => {
+    const date = getRecentPastDate()
+    fs.mkdirSync(TEST_DIR, { recursive: true })
+    fs.writeFileSync(path.join(TEST_DIR, `ord-${date}.log`), 'a')
+    fs.writeFileSync(path.join(TEST_DIR, `ord-${date}.10.log`), 'c')
+    fs.writeFileSync(path.join(TEST_DIR, `ord-${date}.2.log`), 'b')
+    const w = new NodeWriter(makeOptions({ filename: 'ord', compress: true, maxFiles: 10 }))
+    await (w as any).compressOldLogs()
+    const gz = fs.readFileSync(path.join(TEST_DIR, `ord-${date}.log.gz`))
+    const content = zlib.gunzipSync(gz).toString('utf8')
+    expect(content).toBe('a\nb\nc')
+  })
+
+  it('压缩失败时会尝试恢复原有归档文件', async () => {
+    const date = getRecentPastDate()
+    fs.mkdirSync(TEST_DIR, { recursive: true })
+    fs.writeFileSync(
+      path.join(TEST_DIR, `recover-${date}.log.gz`),
+      zlib.gzipSync(Buffer.from('old\n')),
+    )
+    fs.writeFileSync(path.join(TEST_DIR, `recover-${date}.1.log`), 'new\n')
+
+    const spy = jest
+      .spyOn(NodeWriter.prototype as any, 'streamCompressDayFiles')
+      .mockRejectedValue(new Error('boom'))
+
+    const w = new NodeWriter(makeOptions({ filename: 'recover', compress: true, maxFiles: 10 }))
+    await (w as any).compressOldLogs()
+
+    const gz = path.join(TEST_DIR, `recover-${date}.log.gz`)
+    const bak = `${gz}.bak`
+    expect(fs.existsSync(bak)).toBe(false)
+    spy.mockRestore()
+  })
 })
 
 // ─── 目录穿越防护 ─────────────────────────────────────────────────────────────
@@ -140,5 +384,108 @@ describe('NodeWriter — 安全防护', () => {
     // 替换后斜杠消失，不存在路径分隔符，文件仍在 TEST_DIR 内（无目录穿越）
     expect(files.every(f => !f.includes('/') && !f.includes('\\'))).toBe(true)
     expect(files.some(f => f.includes('_'))).toBe(true)
+  })
+})
+
+describe('NodeWriter — 排序与写入失败', () => {
+  it('listManagedFiles 在 mtime 不同的情况下执行 mtime 排序分支', () => {
+    const date = getTodayDate()
+    fs.mkdirSync(TEST_DIR, { recursive: true })
+    const f1 = path.join(TEST_DIR, `sort-${date}.log`)
+    const f2 = path.join(TEST_DIR, `sort-${date}.0.log`)
+    fs.writeFileSync(f1, 'a')
+    fs.writeFileSync(f2, 'b')
+    const t1 = new Date('2026-03-23T00:00:00Z')
+    const t2 = new Date('2026-03-23T00:00:01Z')
+    fs.utimesSync(f1, t1, t1)
+    fs.utimesSync(f2, t2, t2)
+    const w = new NodeWriter(makeOptions({ filename: 'sort' }))
+    ;(w as any).currentFilePath = path.join(TEST_DIR, 'none')
+    const list = (w as any).listManagedFiles()
+    expect(list.length).toBe(2)
+  })
+
+  it('listManagedFiles 在 mtime 相同时执行 name 排序分支', () => {
+    const date = getTodayDate()
+    fs.mkdirSync(TEST_DIR, { recursive: true })
+    const f1 = path.join(TEST_DIR, `sort2-${date}.log`)
+    const f2 = path.join(TEST_DIR, `sort2-${date}.0.log`)
+    fs.writeFileSync(f1, 'a')
+    fs.writeFileSync(f2, 'b')
+    const t = new Date('2026-03-23T00:00:00Z')
+    fs.utimesSync(f1, t, t)
+    fs.utimesSync(f2, t, t)
+    const w = new NodeWriter(makeOptions({ filename: 'sort2' }))
+    ;(w as any).currentFilePath = path.join(TEST_DIR, 'none')
+    const list = (w as any).listManagedFiles()
+    expect(list.length).toBe(2)
+  })
+
+  it('listManagedFiles 在 sortKey 不同时按日期排序', () => {
+    fs.mkdirSync(TEST_DIR, { recursive: true })
+    const d1 = getRecentPastDate()
+    const d2 = getTodayDate()
+    fs.writeFileSync(path.join(TEST_DIR, `sd-${d1}.log`), 'a')
+    fs.writeFileSync(path.join(TEST_DIR, `sd-${d2}.log`), 'b')
+    const w = new NodeWriter(makeOptions({ filename: 'sd' }))
+    const list = (w as any).listManagedFiles()
+    expect(list[0].name).toContain(d2)
+  })
+
+  it('appendToFileWithRetry 多次失败后抛错', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => { })
+    const w = new NodeWriter(makeOptions({ filename: 'fail', retryCount: 0, path: '/root/no-perm-xyz-nw' }))
+    w.init()
+    const err = jest.spyOn(console, 'error').mockImplementation(() => { })
+    await expect((w as any).appendToFileWithRetry('x')).rejects.toThrow()
+    err.mockRestore()
+    warn.mockRestore()
+  })
+
+  it('appendToFileWithRetry 第一次失败后会重试并成功', async () => {
+    const w = new NodeWriter(makeOptions({ filename: 'retry', retryCount: 1, retryDelay: 1 }))
+    w.init()
+    ;(w as any).currentFilePath = TEST_DIR
+    await (w as any).appendToFileWithRetry('ok')
+    const files = fs.readdirSync(TEST_DIR).filter(f => f.endsWith('.log'))
+    expect(files.length).toBeGreaterThan(0)
+  })
+
+  it('listManagedFiles 返回包含 fileDate 与 sortKey', () => {
+    const date = getTodayDate()
+    fs.mkdirSync(TEST_DIR, { recursive: true })
+    const f1 = path.join(TEST_DIR, `lm-${date}.log`)
+    const f2 = path.join(TEST_DIR, `lm-${date}.1.log`)
+    fs.writeFileSync(f1, 'a')
+    fs.writeFileSync(f2, 'b')
+    const w = new NodeWriter(makeOptions({ filename: 'lm' }))
+    const list = (w as any).listManagedFiles()
+    expect(list[0]).toHaveProperty('fileDate')
+    expect(list[0]).toHaveProperty('sortKey')
+  })
+
+  it('无日期文件使用 mtime 作为 sortKey 且可被过期清理', () => {
+    fs.mkdirSync(TEST_DIR, { recursive: true })
+    const f = path.join(TEST_DIR, 'nodate.log')
+    fs.writeFileSync(f, 'x')
+    const w = new NodeWriter(makeOptions({ filename: 'nodate', maxAge: 0 }))
+    const past = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000)
+    fs.utimesSync(f, past, past)
+    const list = (w as any).listManagedFiles()
+    expect(list[0].fileDate).toBeNull()
+    ;(w as any).pruneExpiredFiles()
+    expect(fs.existsSync(f)).toBe(false)
+  })
+
+  it('checkDateRotation 在无日期路径时触发重置', () => {
+    const w = new NodeWriter(makeOptions({ filename: 'chk' }))
+    ;(w as any).currentFilePath = 'nodate.log'
+    const initSpy = jest.spyOn(w as any, 'initializeCurrentFile').mockImplementation(() => { })
+    const cleanSpy = jest.spyOn(w as any, 'cleanupOldFiles').mockImplementation(() => { })
+    ;(w as any).checkDateRotation()
+    expect(initSpy).toHaveBeenCalled()
+    expect(cleanSpy).toHaveBeenCalled()
+    initSpy.mockRestore()
+    cleanSpy.mockRestore()
   })
 })

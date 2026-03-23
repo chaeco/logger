@@ -110,6 +110,26 @@ describe('AsyncQueue — start & stop', () => {
     expect(t1).toBe(t2)
     clearInterval(t1)
   })
+
+  it('stop 时若正在写入会等待再继续', async () => {
+    const onFlush = jest.fn().mockResolvedValue(undefined)
+    const q = new AsyncQueue(makeOptions({ batchSize: 1, flushInterval: 60000 }), onFlush)
+    ;(q as any).queue.push('x')
+    ;(q as any).isWriting = true
+    setTimeout(() => { (q as any).isWriting = false }, 5)
+    await q.stop()
+    expect(onFlush).toHaveBeenCalled()
+  })
+
+  it('stop 多次失败后输出错误提示', async () => {
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => { })
+    const onFlush = jest.fn(async () => { throw new Error('fail') })
+    const q = new AsyncQueue(makeOptions({ batchSize: 1, flushInterval: 60000 }), onFlush)
+    ;(q as any).queue.push('x')
+    await q.stop()
+    expect(spy).toHaveBeenCalled()
+    spy.mockRestore()
+  })
 })
 
 // ─── overflow 策略 ────────────────────────────────────────────────────────────
@@ -137,6 +157,40 @@ describe('AsyncQueue — overflow 策略', () => {
     // enqueue 会先触发 flush 再入队
     await q.enqueue('new')
     expect(onFlush).toHaveBeenCalled()
+    await q.stop()
+  })
+
+  it('策略 overflow：行为与 block 等效', async () => {
+    const onFlush = jest.fn().mockResolvedValue(undefined)
+    const q = new AsyncQueue(
+      makeOptions({ queueSize: 2, batchSize: 10, overflowStrategy: 'overflow' }),
+      onFlush,
+    )
+    for (let i = 0; i < 2; i++) (q as any).queue.push(`m${i}`)
+    await q.enqueue('new')
+    expect(onFlush).toHaveBeenCalled()
+    await q.stop()
+  })
+
+  it('队列满且正在写入时不会忙等阻塞事件循环', async () => {
+    const onFlush = jest.fn().mockResolvedValue(undefined)
+    const q = new AsyncQueue(
+      makeOptions({ queueSize: 1, batchSize: 1, overflowStrategy: 'block' }),
+      onFlush,
+    )
+    // 人为制造“队列满 + 正在写入”的状态
+    ;(q as any).queue.push('full')
+    ;(q as any).isWriting = true
+
+    let timerFired = false
+    setTimeout(() => {
+      timerFired = true
+      ;(q as any).isWriting = false
+      ;(q as any).queue.length = 0
+    }, 20)
+
+    await q.enqueue('later')
+    expect(timerFired).toBe(true)
     await q.stop()
   })
 })

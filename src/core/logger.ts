@@ -19,6 +19,8 @@ export class Logger {
   private level: LogLevel
   private readonly name: string | undefined
   private fileManager: FileManager | undefined
+  private readonly ownsFileManager: boolean
+  private fileEnabled: boolean
   private consoleEnabled: boolean
   private readonly formatter: LogFormatter
   private readonly callerInfoHelper = new CallerInfoHelper()
@@ -30,11 +32,15 @@ export class Logger {
     debug: 0, info: 1, warn: 2, error: 3, silent: 999,
   }
 
-  constructor(options: LoggerOptions = {}) {
+  constructor(options: LoggerOptions = {}, sharedFileManager?: FileManager) {
     this.level = options.level ?? 'info'
     this.name = options.name
+    this.ownsFileManager = !sharedFileManager
+    this.fileEnabled = options.file?.enabled ?? true
 
-    if (options.file?.enabled !== false) {
+    if (sharedFileManager) {
+      this.fileManager = sharedFileManager
+    } else if (options.file?.enabled !== false) {
       this.fileManager = new FileManager(options.file, options.async)
     }
 
@@ -97,8 +103,20 @@ export class Logger {
       this.formatter.settings.consoleColors = options.console.colors ?? this.formatter.settings.consoleColors
       this.formatter.settings.consoleTimestamp = options.console.timestamp ?? this.formatter.settings.consoleTimestamp
     }
-    if (options.file !== undefined && options.file.enabled !== false && !this.fileManager) {
-      this.fileManager = new FileManager(options.file, options.async)
+    if (options.file !== undefined) {
+      this.fileEnabled = options.file.enabled ?? this.fileEnabled
+      if (options.file.enabled === false) {
+        if (this.fileManager && this.ownsFileManager) {
+          void this.fileManager.close()
+        }
+        if (this.ownsFileManager) this.fileManager = undefined
+      } else if (!this.fileManager) {
+        this.fileManager = new FileManager(options.file, options.async)
+      } else if (this.ownsFileManager) {
+        // 文件配置变更时重建 FileManager（路径/轮转/压缩/异步策略）
+        void this.fileManager.close()
+        this.fileManager = new FileManager(options.file, options.async)
+      }
     }
     if (options.format) this.configureFormat(options.format)
     if (options.errorHandling) this.configureErrorHandling(options.errorHandling)
@@ -146,13 +164,13 @@ export class Logger {
     } else {
       opts.file = { enabled: false }
     }
-    return new Logger(opts)
+    return new Logger(opts, this.fileManager)
   }
 
   // ─── 生命周期 ────────────────────────────────────────────
 
   async close(): Promise<void> {
-    if (this.fileManager) {
+    if (this.fileManager && this.ownsFileManager) {
       try {
         await this.fileManager.close()
       } catch (e) {
@@ -177,7 +195,10 @@ export class Logger {
   }
 
   private createLogEntry(level: LogLevel, message: string, data?: any): LogEntry {
-    const { file, line } = this.callerInfoHelper.getCallerInfo()
+    const needCallerInfo = this.formatter.settings.format.includeStack
+    const { file, line } = needCallerInfo
+      ? this.callerInfoHelper.getCallerInfo()
+      : { file: undefined, line: undefined }
     const entry: LogEntry = {
       level,
       message,
@@ -198,7 +219,7 @@ export class Logger {
   }
 
   private writeToFile(entry: LogEntry): void {
-    if (!this.fileManager) return
+    if (!this.fileManager || !this.fileEnabled) return
     const msg = this.formatter.formatMessage(entry)
     this.fileManager.write(msg).catch(e => this.handleWriteError(e, msg, entry))
   }
@@ -208,6 +229,7 @@ export class Logger {
     try { this.errorHandling.onError?.(err, 'file_write') } catch (e) { console.error('Error in error handler:', e) }
     const preview = message.length > 120 ? message.slice(0, 120) + '…' : message
     this.emitEvent('fileWriteError', `文件写入失败: ${preview}`, err)
+    this.emitEvent('error', '内部错误: file_write', err, { context: 'file_write' })
     if (this.errorHandling.fallbackToConsole && !this.errorHandling.silent && entry)
       console.error('[Logger Fallback]', this.formatter.formatConsoleMessage(entry))
   }
@@ -237,4 +259,3 @@ export class Logger {
     this.writeToFile(entry)
   }
 }
-

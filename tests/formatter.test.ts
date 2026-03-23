@@ -72,6 +72,14 @@ describe('LogFormatter — formatMessage()', () => {
     expect(parsed.data).toEqual({ x: 1 })
   })
 
+  it('JSON 格式包含 file/line（includeStack=true）', () => {
+    const f = makeFormatter({ format: { enabled: false, timestampFormat: 'YYYY-MM-DD HH:mm:ss.SSS', includeStack: true, includeName: false, json: true, jsonIndent: 0 } })
+    const out = f.formatMessage(makeEntry({ file: 'src/app.ts', line: 12 }))
+    const parsed = JSON.parse(out)
+    expect(parsed.file).toBe('src/app.ts')
+    expect(parsed.line).toBe(12)
+  })
+
   it('JSON 格式支持 jsonIndent 缩进', () => {
     const f = makeFormatter({ format: { enabled: false, timestampFormat: 'YYYY-MM-DD HH:mm:ss.SSS', includeStack: false, includeName: false, json: true, jsonIndent: 2 } })
     const out = f.formatMessage(makeEntry())
@@ -117,6 +125,32 @@ describe('LogFormatter — formatConsoleMessage()', () => {
     const f = makeFormatter({ consoleColors: true, format: { enabled: true, timestampFormat: 'YYYY-MM-DD HH:mm:ss.SSS', includeStack: false, includeName: false, json: false, jsonIndent: 0, formatter: (e) => `CON:${e.message}` } })
     expect(f.formatConsoleMessage(makeEntry())).toBe('CON:test message')
   })
+
+  it('自定义 formatter 抛错时输出 console.error 并降级', () => {
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => { })
+    const f = makeFormatter({
+      consoleColors: false,
+      format: {
+        enabled: true,
+        timestampFormat: 'YYYY-MM-DD HH:mm:ss.SSS',
+        includeStack: false,
+        includeName: false,
+        json: false,
+        jsonIndent: 0,
+        formatter: () => { throw new Error('boom') },
+      },
+    })
+    const out = f.formatConsoleMessage(makeEntry())
+    expect(out).toContain('test message')
+    expect(spy).toHaveBeenCalled()
+    spy.mockRestore()
+  })
+
+  it('有色模式下 data 被序列化输出', () => {
+    const f = makeFormatter({ consoleColors: true, consoleTimestamp: false })
+    const out = f.formatConsoleMessage(makeEntry({ data: { a: 1 } }))
+    expect(out).toContain('"a"')
+  })
 })
 
 // ─── updateFormat ─────────────────────────────────────────────────────────────
@@ -140,6 +174,15 @@ describe('LogFormatter — updateFormat()', () => {
     f.updateFormat({ timestampFormat: 'HH:mm:ss' })
     expect(f.settings.format.timestampFormat).toBe('HH:mm:ss')
   })
+
+  it('可更新 enabled/formatter/includeName', () => {
+    const f = makeFormatter()
+    const fn = (e: any) => `X:${e.message}`
+    f.updateFormat({ enabled: true, formatter: fn, includeName: false })
+    expect(f.settings.format.enabled).toBe(true)
+    expect(f.settings.format.formatter).toBe(fn)
+    expect(f.settings.format.includeName).toBe(false)
+  })
 })
 
 // ─── safeStringify（通过 formatMessage 间接测试）──────────────────────────────
@@ -157,5 +200,14 @@ describe('LogFormatter — safeStringify 循环引用', () => {
     const f = makeFormatter()
     const out = f.formatMessage(makeEntry({ data: null }))
     expect(out).toContain('null')
+  })
+
+  it('序列化异常时返回 [Unable to serialize]', () => {
+    const f = makeFormatter()
+    const bad: any = {}
+    bad.toJSON = () => { throw new Error('json fail') }
+    bad.toString = () => { throw new Error('string fail') }
+    const out = f.formatMessage(makeEntry({ data: bad }))
+    expect(out).toContain('Unable to serialize')
   })
 })

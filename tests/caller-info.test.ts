@@ -30,6 +30,70 @@ describe('CallerInfoHelper — getCallerInfo()', () => {
     expect(r1.file).toBe(r2.file)
     expect(r1.line).toBe(r2.line)
   })
+
+  it('缓存命中直接返回缓存结果', () => {
+    const h = new CallerInfoHelper()
+    const originalError = global.Error
+    class FakeError extends originalError {
+      constructor() {
+        super('x')
+        ;(this as any).stack = 'Error\n at /project/src/a.ts:10:5'
+      }
+    }
+    ;(global as any).Error = FakeError
+    const stack = new FakeError().stack as string
+    const key = (h as any).simpleHash(stack)
+    ;(h as any).cache.set(key, { file: 'cached.ts', line: 1 })
+    const info = h.getCallerInfo()
+    expect(info.file).toBe('cached.ts')
+    expect(info.line).toBe(1)
+    ;(global as any).Error = originalError
+  })
+
+  it('无法解析时返回空对象', () => {
+    const h = new CallerInfoHelper()
+    const originalError = global.Error
+    class FakeError extends originalError {
+      constructor() {
+        super('x')
+        ;(this as any).stack = 'Error\n at node:internal/process/task_queues:1:1'
+      }
+    }
+    ;(global as any).Error = FakeError
+    const info = h.getCallerInfo()
+    expect(info).toEqual({})
+    ;(global as any).Error = originalError
+  })
+
+  it('stack 为空时返回空对象', () => {
+    const h = new CallerInfoHelper()
+    const originalError = global.Error
+    class FakeError extends originalError {
+      constructor() {
+        super('x')
+        ;(this as any).stack = undefined
+      }
+    }
+    ;(global as any).Error = FakeError
+    const info = h.getCallerInfo()
+    expect(info).toEqual({})
+    ;(global as any).Error = originalError
+  })
+
+  it('stack 中包含空行时可正常跳过', () => {
+    const h = new CallerInfoHelper()
+    const originalError = global.Error
+    class FakeError extends originalError {
+      constructor() {
+        super('x')
+        ;(this as any).stack = 'Error\n\n at /project/src/a.ts:10:5'
+      }
+    }
+    ;(global as any).Error = FakeError
+    const info = h.getCallerInfo()
+    expect(info.file).toBeDefined()
+    ;(global as any).Error = originalError
+  })
 })
 
 describe('CallerInfoHelper — clearCache()', () => {

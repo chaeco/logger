@@ -13,6 +13,22 @@ afterEach(cleanup)
 // ─── 构造与默认值 ─────────────────────────────────────────────────────────────
 
 describe('FileManager — 构造', () => {
+  it('无参数构造使用默认路径与文件名', () => {
+    const fm = new FileManager()
+    const opts = fm.getOptions()
+    expect(opts.path).toBe('./logs')
+    expect(opts.filename).toBe('app')
+  })
+
+  it('异步配置默认值正确', () => {
+    const fm = new FileManager({ path: TEST_DIR }, { enabled: true })
+    const q = (fm as any).asyncQueue
+    expect(q).toBeDefined()
+    expect(q.options.queueSize).toBe(1000)
+    expect(q.options.batchSize).toBe(100)
+    expect(q.options.flushInterval).toBe(1000)
+    expect(q.options.overflowStrategy).toBe('drop')
+  })
   it('使用默认选项构造不抛出', () => {
     expect(() => new FileManager({ path: TEST_DIR })).not.toThrow()
   })
@@ -60,8 +76,35 @@ describe('FileManager — init()', () => {
   })
 
   it('无效路径时 init 不抛出（静默处理）', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => { })
     const fm = new FileManager({ path: '/root/no-perm-xyz-123' })
     expect(() => fm.init()).not.toThrow()
+    warn.mockRestore()
+  })
+
+  it('nodeWriter.init 抛错时捕获并设置 initError', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => { })
+    const original = jest
+      .spyOn(require('../src/file/node-writer').NodeWriter.prototype, 'init')
+      .mockImplementation(() => { throw 'boom' })
+    const fm = new FileManager({ path: TEST_DIR })
+    fm.init()
+    expect((fm as any).initError).toBeDefined()
+    expect(warn).toHaveBeenCalled()
+    original.mockRestore()
+    warn.mockRestore()
+  })
+
+  it('nodeWriter.init 抛出 Error 分支覆盖', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => { })
+    const original = jest
+      .spyOn(require('../src/file/node-writer').NodeWriter.prototype, 'init')
+      .mockImplementation(() => { throw new Error('boom') })
+    const fm = new FileManager({ path: TEST_DIR })
+    fm.init()
+    expect((fm as any).initError).toBeInstanceOf(Error)
+    original.mockRestore()
+    warn.mockRestore()
   })
 })
 
@@ -90,10 +133,12 @@ describe('FileManager — write()', () => {
   })
 
   it('init 失败后 write 静默忽略', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => { })
     const fm = new FileManager({ path: '/root/no-perm-xyz-123' })
     // 触发 init 失败
     fm.init()
     await expect(fm.write('hello')).resolves.not.toThrow()
+    warn.mockRestore()
   })
 })
 
@@ -142,6 +187,17 @@ describe('FileManager — 异步写入', () => {
   it('无队列时 getQueueStatus.size 为 0', () => {
     const fm = new FileManager({ path: TEST_DIR })
     expect(fm.getQueueStatus().size).toBe(0)
+  })
+
+  it('异步模式写入后队列 size 变大', async () => {
+    const fm = new FileManager(
+      { path: TEST_DIR, filename: 'q' },
+      { enabled: true, batchSize: 100, flushInterval: 60000 },
+    )
+    await fm.write('queued')
+    const status = fm.getQueueStatus()
+    expect(status.size).toBeGreaterThan(0)
+    await fm.close()
   })
 })
 
