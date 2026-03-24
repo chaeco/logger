@@ -31,7 +31,7 @@ class FileManager {
                 flushInterval: asyncOptions.flushInterval ?? 500,
                 overflowStrategy: asyncOptions.overflowStrategy ?? 'drop',
             };
-            this.asyncQueue = new async_queue_1.AsyncQueue(ao, msgs => this.nodeWriter.writeBatch(msgs));
+            this.asyncQueue = new async_queue_1.AsyncQueue(ao, (msgs) => this.nodeWriter.writeBatch(msgs));
             this.asyncQueue.start();
         }
     }

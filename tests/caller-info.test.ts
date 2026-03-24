@@ -23,7 +23,9 @@ describe('CallerInfoHelper — getCallerInfo()', () => {
   it('相同调用位置走缓存路径', () => {
     const h = new CallerInfoHelper()
     // 通过同一个包装函数调用，确保堆栈一致
-    function caller() { return h.getCallerInfo() }
+    function caller() {
+      return h.getCallerInfo()
+    }
     const r1 = caller()
     const r2 = caller()
     // 缓存命中：结果相同（file/line 相同）
@@ -113,11 +115,11 @@ describe('CallerInfoHelper — clearCache()', () => {
 describe('CallerInfoHelper — LRU 缓存淘汰', () => {
   it('超过 maxCacheSize 时不抛出', () => {
     const h = new CallerInfoHelper(2)
-      // 伪造缓存填满
-      ; (h as any).cache.set('k1', { file: 'a.ts', line: 1 })
-      ; (h as any).cache.set('k2', { file: 'b.ts', line: 2 })
-      // 填入第 3 个应淘汰最旧
-      ; (h as any).cacheResult('k3', { file: 'c.ts', line: 3 })
+    // 伪造缓存填满
+    ;(h as any).cache.set('k1', { file: 'a.ts', line: 1 })
+    ;(h as any).cache.set('k2', { file: 'b.ts', line: 2 })
+    // 填入第 3 个应淘汰最旧
+    ;(h as any).cacheResult('k3', { file: 'c.ts', line: 3 })
     expect(h.getCacheSize()).toBeLessThanOrEqual(2)
   })
 })

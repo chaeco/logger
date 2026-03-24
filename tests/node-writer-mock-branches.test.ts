@@ -4,8 +4,8 @@ let warnSpy: jest.SpyInstance
 let errorSpy: jest.SpyInstance
 
 beforeEach(() => {
-  warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => { })
-  errorSpy = jest.spyOn(console, 'error').mockImplementation(() => { })
+  warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {})
+  errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
 })
 
 afterEach(() => {
@@ -21,7 +21,9 @@ describe('NodeWriter — mocked fs branches', () => {
         return {
           ...real,
           existsSync: () => false,
-          mkdirSync: () => { throw 'boom' },
+          mkdirSync: () => {
+            throw 'boom'
+          },
         }
       })
       const { NodeWriter } = require('../src/file/node-writer')
@@ -49,7 +51,9 @@ describe('NodeWriter — mocked fs branches', () => {
         return {
           ...real,
           existsSync: () => true,
-          statSync: () => { throw 'stat fail' },
+          statSync: () => {
+            throw 'stat fail'
+          },
         }
       })
       const { NodeWriter } = require('../src/file/node-writer')
@@ -78,8 +82,10 @@ describe('NodeWriter — mocked fs branches', () => {
           return {
             ...real,
             existsSync: () => true,
-            mkdirSync: () => { },
-            appendFileSync: () => { throw 'write fail' },
+            mkdirSync: () => {},
+            appendFileSync: () => {
+              throw 'write fail'
+            },
           }
         })
         const { NodeWriter } = require('../src/file/node-writer')
@@ -105,11 +111,19 @@ describe('NodeWriter — mocked fs branches', () => {
   it('streamCompressDayFiles 处理 string chunk 分支', async () => {
     await new Promise<void>((resolve) => {
       jest.isolateModules(async () => {
+        // Mock fs 以模拟流式压缩过程
         jest.doMock('fs', () => {
           const real = jest.requireActual('fs')
+          const { PassThrough } = require('stream')
           return {
             ...real,
             createReadStream: () => Readable.from(['abc']),
+            createWriteStream: () => {
+              const passThrough = new PassThrough()
+              // 立即触发 finish 事件使流完成
+              setImmediate(() => passThrough.emit('finish'))
+              return passThrough
+            },
           }
         })
         const { NodeWriter } = require('../src/file/node-writer')
@@ -124,10 +138,7 @@ describe('NodeWriter — mocked fs branches', () => {
           retryCount: 0,
           retryDelay: 0,
         })
-        await (w as any).streamCompressDayFiles(
-          [{ name: 'a.log', path: 'a.log' }],
-          '/tmp/out.gz',
-        )
+        await (w as any).streamCompressDayFiles([{ name: 'a.log', path: 'a.log' }], '/tmp/out.gz')
         resolve()
       })
     })

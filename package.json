@@ -41,7 +41,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git@github.com:chaeco/logger.git"
+    "url": "git+ssh://git@github.com/chaeco/logger.git"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",
