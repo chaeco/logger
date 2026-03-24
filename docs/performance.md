@@ -15,9 +15,23 @@ const log = new Logger({
   async: {
     enabled: true,
     queueSize: 5000,
-    batchSize: 500,
+    batchSize: 200,
     flushInterval: 500,
-    overflowStrategy: 'drop', // 高并发场景优先保护吞吐
+    overflowStrategy: 'block', // 默认推荐：保证日志不丢失
+  },
+})
+```
+
+若你的场景是极端吞吐优先（可接受少量日志丢失），可改为：
+
+```typescript
+const log = new Logger({
+  async: {
+    enabled: true,
+    queueSize: 10000,
+    batchSize: 500,
+    flushInterval: 100,
+    overflowStrategy: 'drop',
   },
 })
 ```

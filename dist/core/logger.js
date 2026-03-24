@@ -1,13 +1,10 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Logger = void 0;
 const file_manager_1 = require("../file/file-manager");
 const caller_info_1 = require("../utils/caller-info");
 const formatter_1 = require("../utils/formatter");
-const dayjs_1 = __importDefault(require("dayjs"));
+const date_utils_1 = require("../utils/date-utils");
 /**
  * 日志器主类
  * @remarks
@@ -15,7 +12,7 @@ const dayjs_1 = __importDefault(require("dayjs"));
  * 仅支持 Node.js 运行时。
  */
 class Logger {
-    constructor(options = {}) {
+    constructor(options = {}, sharedFileManager) {
         this.callerInfoHelper = new caller_info_1.CallerInfoHelper();
         this.errorHandling = {
             silent: true, onError: undefined, fallbackToConsole: true,
@@ -26,7 +23,12 @@ class Logger {
         };
         this.level = options.level ?? 'info';
         this.name = options.name;
-        if (options.file?.enabled !== false) {
+        this.ownsFileManager = !sharedFileManager;
+        this.fileEnabled = options.file?.enabled ?? true;
+        if (sharedFileManager) {
+            this.fileManager = sharedFileManager;
+        }
+        else if (options.file?.enabled !== false) {
             this.fileManager = new file_manager_1.FileManager(options.file, options.async);
         }
         this.consoleEnabled = options.console?.enabled ?? true;
@@ -80,8 +82,23 @@ class Logger {
             this.formatter.settings.consoleColors = options.console.colors ?? this.formatter.settings.consoleColors;
             this.formatter.settings.consoleTimestamp = options.console.timestamp ?? this.formatter.settings.consoleTimestamp;
         }
-        if (options.file !== undefined && options.file.enabled !== false && !this.fileManager) {
-            this.fileManager = new file_manager_1.FileManager(options.file, options.async);
+        if (options.file !== undefined) {
+            this.fileEnabled = options.file.enabled ?? this.fileEnabled;
+            if (options.file.enabled === false) {
+                if (this.fileManager && this.ownsFileManager) {
+                    void this.fileManager.close();
+                }
+                if (this.ownsFileManager)
+                    this.fileManager = undefined;
+            }
+            else if (!this.fileManager) {
+                this.fileManager = new file_manager_1.FileManager(options.file, options.async);
+            }
+            else if (this.ownsFileManager) {
+                // 文件配置变更时重建 FileManager（路径/轮转/压缩/异步策略）
+                void this.fileManager.close();
+                this.fileManager = new file_manager_1.FileManager(options.file, options.async);
+            }
         }
         if (options.format)
             this.configureFormat(options.format);
@@ -130,11 +147,11 @@ class Logger {
         else {
             opts.file = { enabled: false };
         }
-        return new Logger(opts);
+        return new Logger(opts, this.fileManager);
     }
     // ─── 生命周期 ────────────────────────────────────────────
     async close() {
-        if (this.fileManager) {
+        if (this.fileManager && this.ownsFileManager) {
             try {
                 await this.fileManager.close();
             }
@@ -151,7 +168,7 @@ class Logger {
         const handlers = this.eventHandlers.get(type);
         if (!handlers?.length)
             return;
-        const event = { type, message, error, data, timestamp: (0, dayjs_1.default)().format('YYYY-MM-DD HH:mm:ss.SSS') };
+        const event = { type, message, error, data, timestamp: (0, date_utils_1.formatNow)('YYYY-MM-DD HH:mm:ss.SSS') };
         for (const h of handlers) {
             try {
                 h(event);
@@ -162,11 +179,14 @@ class Logger {
         }
     }
     createLogEntry(level, message, data) {
-        const { file, line } = this.callerInfoHelper.getCallerInfo();
+        const needCallerInfo = this.formatter.settings.format.includeStack;
+        const { file, line } = needCallerInfo
+            ? this.callerInfoHelper.getCallerInfo()
+            : { file: undefined, line: undefined };
         const entry = {
             level,
             message,
-            timestamp: (0, dayjs_1.default)().format('YYYY-MM-DD HH:mm:ss.SSS'),
+            timestamp: (0, date_utils_1.formatNow)('YYYY-MM-DD HH:mm:ss.SSS'),
             data,
         };
         if (this.name)
@@ -185,7 +205,7 @@ class Logger {
         consoleFn(msg);
     }
     writeToFile(entry) {
-        if (!this.fileManager)
+        if (!this.fileManager || !this.fileEnabled)
             return;
         const msg = this.formatter.formatMessage(entry);
         this.fileManager.write(msg).catch(e => this.handleWriteError(e, msg, entry));
@@ -200,6 +220,7 @@ class Logger {
         }
         const preview = message.length > 120 ? message.slice(0, 120) + '…' : message;
         this.emitEvent('fileWriteError', `文件写入失败: ${preview}`, err);
+        this.emitEvent('error', '内部错误: file_write', err, { context: 'file_write' });
         if (this.errorHandling.fallbackToConsole && !this.errorHandling.silent && entry)
             console.error('[Logger Fallback]', this.formatter.formatConsoleMessage(entry));
     }

@@ -1,12 +1,9 @@
 "use strict";
 /* eslint-disable @typescript-eslint/no-explicit-any */
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.LogFormatter = void 0;
 const color_utils_1 = require("./color-utils");
-const dayjs_1 = __importDefault(require("dayjs"));
+const date_utils_1 = require("./date-utils");
 /**
  * 日志格式化器
  * @internal
@@ -119,7 +116,7 @@ class LogFormatter {
         const { format } = this.settings;
         const parts = [];
         if (includeTimestamp) {
-            const ts = (0, dayjs_1.default)(entry.timestamp).format(format.timestampFormat);
+            const ts = (0, date_utils_1.formatDate)(entry.timestamp, format.timestampFormat);
             parts.push(`[${ts}]`);
         }
         if (format.includeName && entry.name)

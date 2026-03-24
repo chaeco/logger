@@ -1,10 +1,13 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ColorUtils = void 0;
-const chalk_1 = __importDefault(require("chalk"));
+const ansi = (code) => (text) => `\x1b[${code}m${text}\x1b[0m`;
+const GRAY = ansi(90);
+const BLUE = ansi(34);
+const YELLOW = ansi(33);
+const RED = ansi(31);
+const WHITE = ansi(37);
+const CYAN = ansi(36);
 /**
  * 颜色工具类
  * @internal
@@ -14,16 +17,11 @@ const chalk_1 = __importDefault(require("chalk"));
 class ColorUtils {
     static getLevelColor(level) {
         switch (level.toLowerCase()) {
-            case 'debug':
-                return chalk_1.default.gray;
-            case 'info':
-                return chalk_1.default.blue;
-            case 'warn':
-                return chalk_1.default.yellow;
-            case 'error':
-                return chalk_1.default.red;
-            default:
-                return chalk_1.default.white;
+            case 'debug': return GRAY;
+            case 'info': return BLUE;
+            case 'warn': return YELLOW;
+            case 'error': return RED;
+            default: return WHITE;
         }
     }
     static colorizeLevel(level) {
@@ -34,13 +32,13 @@ class ColorUtils {
      * 将时间戳渲染为灰色，内部添加方括号（与 colorizeName / colorizeFileLocation 约定一致）
      */
     static colorizeTimestamp(timestamp) {
-        return chalk_1.default.gray(`[${timestamp}]`);
+        return GRAY(`[${timestamp}]`);
     }
     static colorizeName(name) {
-        return chalk_1.default.cyan(`[${name}]`);
+        return CYAN(`[${name}]`);
     }
     static colorizeFileLocation(location) {
-        return chalk_1.default.gray(`(${location})`);
+        return GRAY(`(${location})`);
     }
     static colorizeMessage(level, message) {
         const color = this.getLevelColor(level);

@@ -32,12 +32,12 @@ export class FileManager {
     if (asyncOptions?.enabled) {
       const ao: Required<AsyncWriteOptions> = {
         enabled: asyncOptions.enabled,
-        queueSize: asyncOptions.queueSize ?? 1000,
-        batchSize: asyncOptions.batchSize ?? 100,
-        flushInterval: asyncOptions.flushInterval ?? 1000,
+        queueSize: asyncOptions.queueSize ?? 5000,
+        batchSize: asyncOptions.batchSize ?? 200,
+        flushInterval: asyncOptions.flushInterval ?? 500,
         overflowStrategy: asyncOptions.overflowStrategy ?? 'drop',
       }
-      this.asyncQueue = new AsyncQueue(ao, msgs => this.nodeWriter.writeBatch(msgs))
+      this.asyncQueue = new AsyncQueue(ao, (msgs) => this.nodeWriter.writeBatch(msgs))
       this.asyncQueue.start()
     }
   }
@@ -59,7 +59,10 @@ export class FileManager {
     if (!this.options.enabled) return
     if (!this.isInitialized && !this.initError) this.init()
     if (this.initError) return
-    if (this.asyncQueue) { await this.asyncQueue.enqueue(message); return }
+    if (this.asyncQueue) {
+      await this.asyncQueue.enqueue(message)
+      return
+    }
     await this.nodeWriter.write(message)
   }
 
@@ -83,5 +86,3 @@ export class FileManager {
     return { size: this.asyncQueue?.size ?? 0, isWriting: this.asyncQueue?.writing ?? false }
   }
 }
-
-

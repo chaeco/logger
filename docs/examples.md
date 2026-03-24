@@ -104,10 +104,10 @@ const log = new Logger({
   file: { path: './logs', filename: 'server' },
   async: {
     enabled: true,
-    queueSize: 2000,     // 队列容量
+    queueSize: 5000,     // 推荐：中高并发默认容量
     batchSize: 200,      // 每批写入条数
     flushInterval: 500,  // 最长等待刷新时间（毫秒）
-    overflowStrategy: 'drop', // 队列满时策略：drop | block | overflow
+    overflowStrategy: 'block', // 推荐：不丢日志（吞吐优先可改为 drop）
   },
 })
 ```

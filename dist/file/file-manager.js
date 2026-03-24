@@ -26,9 +26,9 @@ class FileManager {
         if (asyncOptions?.enabled) {
             const ao = {
                 enabled: asyncOptions.enabled,
-                queueSize: asyncOptions.queueSize ?? 1000,
-                batchSize: asyncOptions.batchSize ?? 100,
-                flushInterval: asyncOptions.flushInterval ?? 1000,
+                queueSize: asyncOptions.queueSize ?? 5000,
+                batchSize: asyncOptions.batchSize ?? 200,
+                flushInterval: asyncOptions.flushInterval ?? 500,
                 overflowStrategy: asyncOptions.overflowStrategy ?? 'drop',
             };
             this.asyncQueue = new async_queue_1.AsyncQueue(ao, msgs => this.nodeWriter.writeBatch(msgs));

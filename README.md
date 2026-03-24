@@ -2,7 +2,7 @@
 
 A feature-rich, high-performance logging library for Node.js.
 
-[![npm version](https://img.shields.io/badge/version-0.1.9-blue.svg)](https://github.com/chaeco/logger)
+[![npm version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/chaeco/logger)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-3178c6.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D16-339933.svg)](https://nodejs.org/)
@@ -34,16 +34,16 @@ npm install github:chaeco/logger
 ### Basic Usage
 
 ```typescript
-import { logger } from '@chaeco/logger';
+import { logger } from '@chaeco/logger'
 
 // Use directly - directory is created automatically on first write
-logger.info('Application started');
-logger.warn('Warning detected', { code: 4001 });
-logger.error(new Error('Database connection failed'));
-logger.debug('Debug details', { timing: 142 });
+logger.info('Application started')
+logger.warn('Warning detected', { code: 4001 })
+logger.error(new Error('Database connection failed'))
+logger.debug('Debug details', { timing: 142 })
 
 // Disable logging
-logger.setLevel('silent');
+logger.setLevel('silent')
 ```
 
 > **Note**: Log directories are created automatically upon the first log entry. No manual initialization is required.
@@ -51,7 +51,7 @@ logger.setLevel('silent');
 ### Advanced Configuration
 
 ```typescript
-import { Logger } from '@chaeco/logger';
+import { Logger } from '@chaeco/logger'
 
 const logger = new Logger({
   level: 'info',
@@ -60,23 +60,44 @@ const logger = new Logger({
     path: './logs',
     maxSize: 10 * 1024 * 1024, // 10MB
     maxFiles: 30,
-    maxAge: 30,                 // days
-    compress: true,             // gzip logs older than today
+    maxAge: 30, // days
+    compress: true, // gzip logs older than today
   },
   console: { enabled: true, colors: true, timestamp: true },
   async: {
     enabled: true,
-    batchSize: 100,
-    flushInterval: 1000,
-    overflowStrategy: 'drop',   // 'drop' | 'block' | 'overflow'
+    queueSize: 5000, // default: suitable for medium-high concurrency
+    batchSize: 200,
+    flushInterval: 500,
+    overflowStrategy: 'block', // recommended: prevents log loss
   },
   format: { json: true, jsonIndent: 2 },
   errorHandling: {
     silent: true,
     onError: (err, ctx) => console.error(`[${ctx}]`, err.message),
   },
-});
+})
 ```
+
+#### Async Queue Configuration Guide
+
+Choose async queue parameters based on application QPS (only when `async.enabled: true`):
+
+| Concurrency Level | QPS    | queueSize  | batchSize | flushInterval | overflowStrategy |
+| ----------------- | ------ | ---------- | --------- | ------------- | ---------------- |
+| Low               | < 1k   | 1000-2000  | 50-100    | 1000-2000     | drop             |
+| Medium-High       | 1k-10k | **5000**   | **200**   | **500**       | **block**        |
+| High              | > 10k  | 8000-10000 | 300-500   | 100-300       | block            |
+
+**Field Descriptions**:
+
+- `queueSize`: Maximum buffered messages in memory before applying `overflowStrategy`
+- `batchSize`: Number of messages per disk write (higher = better I/O throughput)
+- `flushInterval`: Max wait time before triggering a write (milliseconds)
+- `overflowStrategy`: Behavior when queue is full
+  - `drop`: Discard new messages (fastest, but may lose logs)
+  - `block`: Wait for current batch to finish, then enqueue (recommended, prevents log loss)
+  - `overflow`: Currently equivalent to `block`
 
 #### File Retention Semantics
 
@@ -93,11 +114,11 @@ const logger = new Logger({
 ### Child Logger
 
 ```typescript
-const dbLogger = logger.child('db');
-dbLogger.info('Connected');       // logged as [api-service:db]
+const dbLogger = logger.child('db')
+dbLogger.info('Connected') // logged as [api-service:db]
 
-const reqLogger = logger.child('request');
-reqLogger.warn('Slow response', { duration: 3200 });
+const reqLogger = logger.child('request')
+reqLogger.warn('Slow response', { duration: 3200 })
 ```
 
 > Child loggers share the same file output pipeline with the parent logger in the same process.
@@ -106,13 +127,13 @@ reqLogger.warn('Slow response', { duration: 3200 });
 
 ```typescript
 logger.on('levelChange', (e) => {
-  console.log(`Level changed: ${e.data.oldLevel} → ${e.data.newLevel}`);
-});
+  console.log(`Level changed: ${e.data.oldLevel} → ${e.data.newLevel}`)
+})
 
 logger.on('fileWriteError', (e) => {
   // trigger external alert (e.g. Sentry, PagerDuty)
-  console.error('Log write failed:', e.error?.message);
-});
+  console.error('Log write failed:', e.error?.message)
+})
 ```
 
 ### Lifecycle
@@ -120,9 +141,9 @@ logger.on('fileWriteError', (e) => {
 ```typescript
 // Flush async queue and close file handles before process exit
 process.on('SIGTERM', async () => {
-  await logger.close();
-  process.exit(0);
-});
+  await logger.close()
+  process.exit(0)
+})
 ```
 
 ## Documentation

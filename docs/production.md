@@ -6,7 +6,7 @@
 
 ## 推荐配置
 
-### 标准 Web 服务
+### 标准 Web 服务（1k-10k req/s）
 
 ```typescript
 import { Logger } from '@chaeco/logger'
@@ -17,17 +17,17 @@ const log = new Logger({
   file: {
     path: process.env.LOG_PATH ?? './logs',
     filename: 'app',
-    maxSize: 100 * 1024 * 1024, // 100 MB
-    maxFiles: 14,               // 保留 14 个文件
-    maxAge: 30,                 // 30 天自动清理
-    compress: true,             // 压缩非当日日志
+    maxSize: 100 * 1024 * 1024, // 100 MB 时自动轮转
+    maxFiles: 14,               // 保留最多 14 个文件
+    maxAge: 30,                 // 超过 30 天自动删除
+    compress: true,             // 压缩非当日日志为 .gz
   },
   async: {
     enabled: true,
-    queueSize: 5000,
-    batchSize: 500,
-    flushInterval: 1000,
-    overflowStrategy: 'drop',
+    queueSize: 5000,   // 默认值：适合中等-高并发
+    batchSize: 200,    // 每次写入打包 200 条消息
+    flushInterval: 500, // 最多等待 500ms 触发一次写入
+    overflowStrategy: 'block', // 推荐：队列满时等待，保证日志不丢失
   },
   console: {
     enabled: process.env.NODE_ENV !== 'production',
@@ -42,7 +42,7 @@ const log = new Logger({
 })
 ```
 
-### 高频微服务
+### 高频微服务（> 10k req/s）
 
 ```typescript
 const log = new Logger({
@@ -57,16 +57,16 @@ const log = new Logger({
   },
   async: {
     enabled: true,
-    queueSize: 10000,
-    batchSize: 1000,
-    flushInterval: 500,
-    overflowStrategy: 'drop', // 极端吞吐场景优先保护服务
+    queueSize: 10000,  // 充分缓冲，应对流量突发
+    batchSize: 500,    // 大批次提高 I/O 效率
+    flushInterval: 100, // 频繁刷新，避免积压
+    overflowStrategy: 'drop', // 极端吞吐优先保护服务，可容忍少量日志丢失
   },
   console: { enabled: false },
   format: {
-    json: true,       // 结构化日志，便于采集
-    jsonIndent: 0,
-    includeStack: false,
+    json: true,       // 结构化日志，便于采集和分析
+    jsonIndent: 0,    // 不缩进，减少文件大小
+    includeStack: false, // 高并发时禁用堆栈捕获
   },
 })
 ```
@@ -96,19 +96,32 @@ const log = new Logger({
 
 ---
 
-## 异步写入参数选型
+## 异步写入参数速查表
 
-| 参数 | 说明 | 低流量 | 高流量 |
-|------|------|--------|--------|
-| `queueSize` | 队列容量 | 1000 | 5000–10000 |
-| `batchSize` | 每批写入条数 | 100 | 500–1000 |
-| `flushInterval` | 最大刷新间隔（ms） | 1000 | 500 |
-| `overflowStrategy` | 队列满时策略 | `block` | `drop` |
+根据应用的预期 QPS（每秒请求数）选择合适的异步队列参数（仅在 `async.enabled: true` 时生效）：
 
-**策略说明**：
-- `drop`：丢弃新消息，零阻塞，适合极高并发
-- `block`：等待当前批次写完后继续，保证不丢失
-- `overflow`：当前与 `block` 等效
+| 并发规模 | QPS | queueSize | batchSize | flushInterval | overflowStrategy | 特点 |
+|--------|-----|----|----------|---------------|-----------------|------|
+| 低流量 | < 1k | 1000 | 50-100 | 1000-2000 | `drop` | 低延迟，可接纳丢失 |
+| **标准** | **1k-10k** | **5000** | **200** | **500** | **`block`** | **默认推荐，保证不丢** |
+| 高流量 | > 10k | 10000 | 500+ | 100-300 | `drop` | 保护服务，可接纳丢失 |
+
+**参数解释**：
+- `queueSize`: 内存中最多缓冲多少条消息；超过后由 `overflowStrategy` 决定是否丢弃或等待
+- `batchSize`: 每次磁盘写入打包多少条消息（越大 I/O 效率越高）
+- `flushInterval`: 即使未达到 `batchSize`，等待多久就强制刷新（毫秒）
+- `overflowStrategy`: 队列满时的处理方式
+  - `drop`: 直接丢弃新消息，**响应最快但可能丢日志**
+  - `block`: 等待当前批次写完后继续入队，**保证日志完整但可能延迟业务线程**
+  - `overflow`: 当前与 `block` 等效
+
+**选择建议**：
+| 场景 | 推荐策略 | 原因 |
+|------|--------|------|
+| 标准 Web 应用 | `block` | 日志通常不能丢，接受毫秒级延迟 |
+| 金融/支付系统 | `block` + 增大 queueSize | 绝对不能丢日志 |
+| 实时流计算 | `drop` | 超低延迟优先，少量日志丢失可接受 |
+| 信息流推荐系统 | `drop` | 吞吐量优先，丢日志影响有限 |
 
 ---
 

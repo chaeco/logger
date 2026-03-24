@@ -1,4 +1,5 @@
 import { LogLevel, LoggerOptions, LoggerEventType, LoggerEventHandler, FormatOptions, ErrorHandlingOptions } from './types';
+import { FileManager } from '../file/file-manager';
 /**
  * 日志器主类
  * @remarks
@@ -9,13 +10,15 @@ export declare class Logger {
     private level;
     private readonly name;
     private fileManager;
+    private readonly ownsFileManager;
+    private fileEnabled;
     private consoleEnabled;
     private readonly formatter;
     private readonly callerInfoHelper;
     private readonly errorHandling;
     private readonly eventHandlers;
     private readonly levelPriority;
-    constructor(options?: LoggerOptions);
+    constructor(options?: LoggerOptions, sharedFileManager?: FileManager);
     init(): void;
     debug(...args: any[]): void;
     info(...args: any[]): void;

@@ -38,7 +38,13 @@ class AsyncQueue {
                     // 'block' 和 'overflow' 均在此处先刷写一批再继续入队。
                     // 注意：'overflow' 字面含义为"溢出到新队列"，当前实现与 'block' 等效——
                     // 都是等待当前批次写完后继续。如需真正独立溢出队列，需扩展此处逻辑。
-                    await this.flush();
+                    if (this.isWriting) {
+                        // 正在写入时不要忙等，给正在进行的 flush 一点完成时间
+                        await new Promise(r => setTimeout(r, 10));
+                    }
+                    else {
+                        await this.flush();
+                    }
                     break;
             }
         }

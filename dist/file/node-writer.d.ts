@@ -9,6 +9,8 @@ export declare class NodeWriter {
     private currentFileSize;
     private fileIndex;
     private _initError;
+    private compressPromise;
+    private static readonly ONE_DAY_MS;
     /** 初始化错误（只读），如果初始化失败则值不为 undefined */
     get initError(): Error | undefined;
     constructor(options: Required<FileOptions>);
@@ -24,6 +26,15 @@ export declare class NodeWriter {
     private rotateFile;
     private cleanupOldFiles;
     private compressOldLogs;
+    private listManagedFiles;
+    private getShardIndex;
+    private pruneExpiredFiles;
+    private pruneFilesByCount;
+    /**
+     * 将多个分片文件流式合并压缩为单个 gzip 文件。
+     * 逐块读取，内存占用与分片大小无关，适合大文件场景。
+     */
+    private streamCompressDayFiles;
     private checkDateRotation;
     private appendToFileWithRetry;
 }
