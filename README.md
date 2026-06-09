@@ -2,7 +2,7 @@
 
 A feature-rich, high-performance logging library for Node.js.
 
-[![npm version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/chaeco/logger)
+[![npm version](https://img.shields.io/badge/version-1.0.1-blue.svg)](https://github.com/chaeco/logger)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-3178c6.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D16-339933.svg)](https://nodejs.org/)

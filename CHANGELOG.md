@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v1.0.1] - 2026-06-09
+
+### Added
+
+- `CLAUDE.md` with architecture notes, build/test commands, and AI-tooling guidance for contributors.
+
+### Changed
+
+- Removed `CLAUDE.md` from npm publish files (it serves contributors in-repo, not consumers).
+
 ## [v1.0.0] - 2026-03-24
 
 ### Highlights
