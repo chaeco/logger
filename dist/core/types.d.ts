@@ -145,9 +145,8 @@ export interface AsyncWriteOptions {
      *  - 一般应用：500-1000
      *  - 吞吐量优先：1000+ */
     flushInterval?: number;
-    /** 队列满时的处理策略：'drop'（丢弃新消息）、'block'（等待当前批次写完再继续）、
-     *  'overflow'（当前与 'block' 等效：等待写完后继续；未来可扩展为独立溢出队列） */
-    overflowStrategy?: 'drop' | 'block' | 'overflow';
+    /** 队列满时的处理策略：'drop'（丢弃新消息）、'block'（等待当前批次写完再继续） */
+    overflowStrategy?: 'drop' | 'block';
 }
 /**
  * 错误处理配置选项

@@ -28,7 +28,7 @@ describe('FileManager — 构造', () => {
     expect(q.options.queueSize).toBe(5000)
     expect(q.options.batchSize).toBe(200)
     expect(q.options.flushInterval).toBe(500)
-    expect(q.options.overflowStrategy).toBe('drop')
+    expect(q.options.overflowStrategy).toBe('block')
   })
   it('使用默认选项构造不抛出', () => {
     expect(() => new FileManager({ path: TEST_DIR })).not.toThrow()
@@ -107,6 +107,19 @@ describe('FileManager — init()', () => {
     original.mockRestore()
     warn.mockRestore()
   })
+
+  it('nodeWriter.init 设置 initError 后传播到 FileManager', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
+    const fm = new FileManager({ path: TEST_DIR, filename: 'err' })
+    jest.spyOn((fm as any).nodeWriter, 'init').mockImplementation(() => {
+      const nw = (fm as any).nodeWriter
+      ;(nw as any)._initError = new Error('mock init error')
+    })
+    fm.init()
+    expect((fm as any).initError).toBeDefined()
+    expect((fm as any).initError!.message).toBe('mock init error')
+    warn.mockRestore()
+  })
 })
 
 // ─── write() ──────────────────────────────────────────────────────────────────
@@ -139,6 +152,20 @@ describe('FileManager — write()', () => {
     // 触发 init 失败
     fm.init()
     await expect(fm.write('hello')).resolves.not.toThrow()
+    warn.mockRestore()
+  })
+
+  it('init 失败后重试初始化', async () => {
+    // 第一次 init 失败，第二次 init 成功（路径变为有效目录）
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
+    const fm = new FileManager({ path: TEST_DIR, filename: 'retry' })
+    // 模拟 init 后 nodeWriter 仍有 initError
+    ;(fm as any).initError = new Error('mock fail')
+    ;(fm as any).isInitialized = false
+    // 写入应触发重试并成功创建目录
+    await fm.write('retry-msg')
+    const files = fs.readdirSync(TEST_DIR).filter((f) => f.endsWith('.log'))
+    expect(files.length).toBeGreaterThan(0)
     warn.mockRestore()
   })
 })
@@ -205,6 +232,20 @@ describe('FileManager — 异步写入', () => {
 // ─── close() ─────────────────────────────────────────────────────────────────
 
 describe('FileManager — close()', () => {
+  it('close 时刷新异步队列', async () => {
+    const fm = new FileManager(
+      { path: TEST_DIR, filename: 'async-close' },
+      { enabled: true, batchSize: 100, flushInterval: 60000 }
+    )
+    await fm.write('pre-close-msg')
+    await fm.close()
+    // 写入后 close 应刷新到磁盘
+    const files = fs.readdirSync(TEST_DIR).filter((f) => f.endsWith('.log'))
+    expect(files.length).toBeGreaterThan(0)
+    const content = fs.readFileSync(`${TEST_DIR}/${files[0]}`, 'utf8')
+    expect(content).toContain('pre-close-msg')
+  })
+
   it('无异步队列时 close 正常完成', async () => {
     const fm = new FileManager({ path: TEST_DIR })
     await expect(fm.close()).resolves.not.toThrow()

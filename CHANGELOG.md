@@ -2,6 +2,37 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v1.0.2] - 2026-08-01
+
+### Fixed
+
+- **P1: `updateConfig` 缺少 `await` 导致数据丢失**: `updateConfig` 改为 `async`，`close()` 加上 `await`，确保异步队列刷新完成后再替换 FileManager。
+- **P2: `CallerInfoHelper` 过时路径排除**: 将 `/plugins/logger/` 替换为 `@chaeco/logger`，确保库内部帧被正确过滤。
+- **P2: `CallerInfoHelper` 缓存淘汰策略**: 从 FIFO 改为真正 LRU，缓存命中时重新插入到末尾，提高高频调用点的缓存命中率。
+- **P2: `AsyncQueue.stop()` 并发 `enqueue` 问题**: 添加 `isStopping` 标志，`stop()` 期间拒绝新消息，防止提前终止导致日志丢失。
+- **`warn` 级别控制台路由**: 从 `console.log` 改为 `console.warn`，与主流日志库行为一致。
+- **Error 对象序列化**: 将 `error.stack` 拆解为 `{message, name, stack}` 结构体，修复 JSON 输出时 Error 被序列化为 `{}` 的问题。
+- **`overflowStrategy` 默认值**: 从 `'drop'` 改为 `'block'`，默认不丢日志。
+
+### Removed
+
+- **`overflow` 溢出策略**: 移除与 `block` 完全等效的冗余 `overflow` 策略，简化类型和逻辑。
+- **`CallerInfoHelper.simpleHash`**: 移除 13 行自定义哈希函数，直接用堆栈字符串作为缓存键，消除碰撞风险，简化代码。
+
+### Changed
+
+- **`updateConfig` 签名**: 从 `void` 改为 `Promise<void>`（`async`），调用方需 `await`。
+- **`AsyncWriteOptions.overflowStrategy` 类型**: 从 `'drop' | 'block' | 'overflow'` 简化为 `'drop' | 'block'`。
+- **`tsconfig.json`**: 移除多余的 `DOM` 库类型和 `experimentalDecorators`/`emitDecoratorMetadata`。
+- **`jest.config.js`**: 移除 `!src/index.ts` 覆盖排除，使默认 logger 实例纳入覆盖统计。
+- 文档和示例中的 `updateConfig` 调用添加 `await`。
+
+### Verification
+
+- Build and test baseline for this release:
+  - `npm run build`
+  - `npx jest` (196 tests passed)
+
 ## [v1.0.1] - 2026-06-09
 
 ### Added

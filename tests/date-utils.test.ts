@@ -23,6 +23,11 @@ describe('date-utils — formatDate()', () => {
     const out = formatDate(d, 'YYYY MM DD HH mm ss SSS')
     expect(out.split(' ').length).toBe(7)
   })
+
+  it('无效日期返回 NaN-NaN-NaN', () => {
+    const out = formatDate('not-a-date', 'YYYY-MM-DD')
+    expect(out).toContain('NaN')
+  })
 })
 
 describe('date-utils — formatNow()', () => {

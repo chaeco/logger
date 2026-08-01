@@ -2,12 +2,12 @@
 
 A feature-rich, high-performance logging library for Node.js.
 
-[![npm version](https://img.shields.io/badge/version-1.0.1-blue.svg)](https://github.com/chaeco/logger)
+[![npm version](https://img.shields.io/badge/version-1.0.2-blue.svg)](https://github.com/chaeco/logger)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-3178c6.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D16-339933.svg)](https://nodejs.org/)
 [![Build](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://github.com/chaeco/logger)
-[![Coverage](https://img.shields.io/badge/coverage-162%20tests-brightgreen.svg)](https://github.com/chaeco/logger)
+[![Coverage](https://img.shields.io/badge/coverage-196%20tests-brightgreen.svg)](https://github.com/chaeco/logger)
 
 [English](README.md) | [中文](README.zh-CN.md)
 
@@ -16,7 +16,7 @@ A feature-rich, high-performance logging library for Node.js.
 - ✅ **Standard Log Levels**: `debug`, `info`, `warn`, `error`, and `silent`.
 - ✅ **Auto-Context**: Automatically captures caller file path and line numbers.
 - ✅ **File Management**: Size-based rotation, age/count cleanup, Gzip compression.
-- ✅ **Async Queue**: Batch writing with `drop` / `block` / `overflow` strategies.
+- ✅ **Async Queue**: Batch writing with `drop` / `block` strategies.
 - ✅ **Formatting**: Plain text, JSON, and custom `formatter` function.
 - ✅ **Event Hooks**: `levelChange`, `fileWriteError` event listeners.
 - ✅ **Child Logger**: `logger.child('module')` inherits config with scoped name.
@@ -97,7 +97,6 @@ Choose async queue parameters based on application QPS (only when `async.enabled
 - `overflowStrategy`: Behavior when queue is full
   - `drop`: Discard new messages (fastest, but may lose logs)
   - `block`: Wait for current batch to finish, then enqueue (recommended, prevents log loss)
-  - `overflow`: Currently equivalent to `block`
 
 #### File Retention Semantics
 

@@ -17,11 +17,16 @@ const CYAN = ansi(36);
 class ColorUtils {
     static getLevelColor(level) {
         switch (level.toLowerCase()) {
-            case 'debug': return GRAY;
-            case 'info': return BLUE;
-            case 'warn': return YELLOW;
-            case 'error': return RED;
-            default: return WHITE;
+            case 'debug':
+                return GRAY;
+            case 'info':
+                return BLUE;
+            case 'warn':
+                return YELLOW;
+            case 'error':
+                return RED;
+            default:
+                return WHITE;
         }
     }
     static colorizeLevel(level) {

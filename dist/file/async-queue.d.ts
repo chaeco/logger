@@ -6,6 +6,7 @@ import { AsyncWriteOptions } from '../core/types';
 export declare class AsyncQueue {
     private queue;
     private isWriting;
+    private isStopping;
     private flushTimer?;
     private readonly options;
     private readonly onFlush;

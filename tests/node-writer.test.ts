@@ -5,11 +5,19 @@ import { NodeWriter } from '../src/file/node-writer'
 
 const TEST_DIR = './test-logs-nw'
 
-function makeOptions(overrides: Partial<{
-  path: string; filename: string; maxSize: number; maxFiles: number
-  maxAge: number; compress: boolean; retryCount: number; retryDelay: number
-  enabled: boolean
-}> = {}) {
+function makeOptions(
+  overrides: Partial<{
+    path: string
+    filename: string
+    maxSize: number
+    maxFiles: number
+    maxAge: number
+    compress: boolean
+    retryCount: number
+    retryDelay: number
+    enabled: boolean
+  }> = {}
+) {
   return {
     enabled: true,
     path: TEST_DIR,
@@ -48,7 +56,7 @@ async function waitFor(condition: () => boolean, timeoutMs = 2000) {
   const started = Date.now()
   while (Date.now() - started < timeoutMs) {
     if (condition()) return
-    await new Promise(resolve => setTimeout(resolve, 20))
+    await new Promise((resolve) => setTimeout(resolve, 20))
   }
   throw new Error('Timed out waiting for condition')
 }
@@ -77,13 +85,12 @@ describe('NodeWriter — init()', () => {
   })
 
   it('目录不可写时 initError 不为 undefined', () => {
-    const warn = jest.spyOn(console, 'warn').mockImplementation(() => { })
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
     const w = new NodeWriter(makeOptions({ path: '/root/no-perm-xyz-nw' }))
     w.init()
     expect(w.initError).toBeDefined()
     warn.mockRestore()
   })
-
 
   it('重复调用 init 不抛出', () => {
     const w = new NodeWriter(makeOptions())
@@ -92,14 +99,16 @@ describe('NodeWriter — init()', () => {
   })
 
   it('initializeCurrentFile 异常时 initError 被设置', () => {
-    const warn = jest.spyOn(console, 'warn').mockImplementation(() => { })
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
     jest.isolateModules(() => {
       jest.doMock('fs', () => {
         const real = jest.requireActual('fs')
         return {
           ...real,
           existsSync: () => true,
-          statSync: () => { throw new Error('stat fail') },
+          statSync: () => {
+            throw new Error('stat fail')
+          },
         }
       })
       const { NodeWriter: MockedNodeWriter } = require('../src/file/node-writer')
@@ -131,14 +140,14 @@ describe('NodeWriter — write()', () => {
     w.init()
     await w.write('hello world')
     const files = fs.readdirSync(TEST_DIR)
-    expect(files.some(f => f.endsWith('.log'))).toBe(true)
+    expect(files.some((f) => f.endsWith('.log'))).toBe(true)
   })
 
   it('写入内容含换行符', async () => {
     const w = new NodeWriter(makeOptions({ filename: 'nl' }))
     w.init()
     await w.write('line one')
-    const files = fs.readdirSync(TEST_DIR).filter(f => f.endsWith('.log'))
+    const files = fs.readdirSync(TEST_DIR).filter((f) => f.endsWith('.log'))
     const content = fs.readFileSync(path.join(TEST_DIR, files[0]), 'utf8')
     expect(content).toMatch(/line one\n/)
   })
@@ -148,7 +157,7 @@ describe('NodeWriter — write()', () => {
     w.init()
     await w.write('first')
     await w.write('second')
-    const files = fs.readdirSync(TEST_DIR).filter(f => f.endsWith('.log'))
+    const files = fs.readdirSync(TEST_DIR).filter((f) => f.endsWith('.log'))
     const content = fs.readFileSync(path.join(TEST_DIR, files[0]), 'utf8')
     expect(content).toContain('first')
     expect(content).toContain('second')
@@ -162,7 +171,7 @@ describe('NodeWriter — writeBatch()', () => {
     const w = new NodeWriter(makeOptions({ filename: 'batch' }))
     w.init()
     await w.writeBatch(['alpha', 'beta', 'gamma'])
-    const files = fs.readdirSync(TEST_DIR).filter(f => f.endsWith('.log'))
+    const files = fs.readdirSync(TEST_DIR).filter((f) => f.endsWith('.log'))
     const content = fs.readFileSync(path.join(TEST_DIR, files[0]), 'utf8')
     expect(content).toContain('alpha')
     expect(content).toContain('beta')
@@ -172,7 +181,7 @@ describe('NodeWriter — writeBatch()', () => {
   it('writeBatch 在超过 maxSize 时触发轮转', async () => {
     const w = new NodeWriter(makeOptions({ filename: 'batchrot', maxSize: 1 }))
     w.init()
-      ; (w as any).currentFileSize = 2
+    ;(w as any).currentFileSize = 2
     await w.writeBatch(['x'])
     const current = (w as any).currentFilePath as string
     expect(current.includes('.1.log')).toBe(true)
@@ -188,7 +197,7 @@ describe('NodeWriter — 文件轮转', () => {
     for (let i = 0; i < 8; i++) {
       await w.write('0123456789abcdef') // > maxSize 触发轮转
     }
-    const files = fs.readdirSync(TEST_DIR).filter(f => f.endsWith('.log'))
+    const files = fs.readdirSync(TEST_DIR).filter((f) => f.endsWith('.log'))
     expect(files.length).toBeGreaterThan(1)
   })
 
@@ -198,7 +207,7 @@ describe('NodeWriter — 文件轮转', () => {
     for (let i = 0; i < 20; i++) {
       await w.write('123456789012345678') // 每条 > 20B，触发多次轮转
     }
-    const files = fs.readdirSync(TEST_DIR).filter(f => f.endsWith('.log'))
+    const files = fs.readdirSync(TEST_DIR).filter((f) => f.endsWith('.log'))
     expect(files.length).toBeLessThanOrEqual(3) // maxFiles + 当前文件
   })
 
@@ -212,9 +221,9 @@ describe('NodeWriter — 文件轮转', () => {
 
     await w.write('today')
 
-    const files = fs.readdirSync(TEST_DIR).filter(f => f.endsWith('.log'))
+    const files = fs.readdirSync(TEST_DIR).filter((f) => f.endsWith('.log'))
     const today = getTodayDate()
-    expect(files.some(f => f.includes(`date-${today}`))).toBe(true)
+    expect(files.some((f) => f.includes(`date-${today}`))).toBe(true)
   })
 })
 
@@ -232,6 +241,9 @@ describe('NodeWriter — 压缩与清理', () => {
     w.init()
 
     await waitFor(() => fs.existsSync(path.join(TEST_DIR, `cmp-${date}.log.gz`)))
+    // 等待压缩完成后删除原始分片（压缩在 async promise 链中异步执行）
+    await waitFor(() => !fs.existsSync(path.join(TEST_DIR, `cmp-${date}.log`)))
+    await waitFor(() => !fs.existsSync(path.join(TEST_DIR, `cmp-${date}.2.log`)))
 
     const gz = fs.readFileSync(path.join(TEST_DIR, `cmp-${date}.log.gz`))
     const content = zlib.gunzipSync(gz).toString('utf8')
@@ -247,7 +259,7 @@ describe('NodeWriter — 压缩与清理', () => {
     fs.mkdirSync(TEST_DIR, { recursive: true })
     fs.writeFileSync(
       path.join(TEST_DIR, `merge-${date}.log.gz`),
-      zlib.gzipSync(Buffer.from('first\n')),
+      zlib.gzipSync(Buffer.from('first\n'))
     )
     fs.writeFileSync(path.join(TEST_DIR, `merge-${date}.1.log`), 'second\n')
 
@@ -329,9 +341,12 @@ describe('NodeWriter — 压缩与清理', () => {
     const out = path.join(TEST_DIR, 'out.gz')
     const w = new NodeWriter(makeOptions({ filename: 'sc' }))
     await (w as any).streamCompressDayFiles(
-      [{ name: 'd1.log', path: f1 }, { name: 'd2.log', path: f2 }],
+      [
+        { name: 'd1.log', path: f1 },
+        { name: 'd2.log', path: f2 },
+      ],
       out,
-      oldGz,
+      oldGz
     )
     const content = zlib.gunzipSync(fs.readFileSync(out)).toString('utf8')
     expect(content).toBe('first\nsecond\nthird')
@@ -355,7 +370,7 @@ describe('NodeWriter — 压缩与清理', () => {
     fs.mkdirSync(TEST_DIR, { recursive: true })
     fs.writeFileSync(
       path.join(TEST_DIR, `recover-${date}.log.gz`),
-      zlib.gzipSync(Buffer.from('old\n')),
+      zlib.gzipSync(Buffer.from('old\n'))
     )
     fs.writeFileSync(path.join(TEST_DIR, `recover-${date}.1.log`), 'new\n')
 
@@ -371,6 +386,16 @@ describe('NodeWriter — 压缩与清理', () => {
     expect(fs.existsSync(bak)).toBe(false)
     spy.mockRestore()
   })
+
+  it('compressionPending 阻止并发压缩', () => {
+    const w = new NodeWriter(makeOptions({ filename: 'no-concurrent', compress: true }))
+    ;(w as any).compressionPending = true
+    // cleanupOldFiles 应跳过压缩，直接执行数量清理
+    const compressSpy = jest.spyOn(w as any, 'compressOldLogs').mockResolvedValue(undefined)
+    ;(w as any).cleanupOldFiles()
+    expect(compressSpy).not.toHaveBeenCalled()
+    compressSpy.mockRestore()
+  })
 })
 
 // ─── 目录穿越防护 ─────────────────────────────────────────────────────────────
@@ -380,10 +405,10 @@ describe('NodeWriter — 安全防护', () => {
     const w = new NodeWriter(makeOptions({ filename: '../../etc/passwd' }))
     w.init()
     await w.write('safe')
-    const files = fs.readdirSync(TEST_DIR).filter(f => f.endsWith('.log'))
+    const files = fs.readdirSync(TEST_DIR).filter((f) => f.endsWith('.log'))
     // 替换后斜杠消失，不存在路径分隔符，文件仍在 TEST_DIR 内（无目录穿越）
-    expect(files.every(f => !f.includes('/') && !f.includes('\\'))).toBe(true)
-    expect(files.some(f => f.includes('_'))).toBe(true)
+    expect(files.every((f) => !f.includes('/') && !f.includes('\\'))).toBe(true)
+    expect(files.some((f) => f.includes('_'))).toBe(true)
   })
 })
 
@@ -400,7 +425,7 @@ describe('NodeWriter — 排序与写入失败', () => {
     fs.utimesSync(f1, t1, t1)
     fs.utimesSync(f2, t2, t2)
     const w = new NodeWriter(makeOptions({ filename: 'sort' }))
-      ; (w as any).currentFilePath = path.join(TEST_DIR, 'none')
+    ;(w as any).currentFilePath = path.join(TEST_DIR, 'none')
     const list = (w as any).listManagedFiles()
     expect(list.length).toBe(2)
   })
@@ -416,7 +441,7 @@ describe('NodeWriter — 排序与写入失败', () => {
     fs.utimesSync(f1, t, t)
     fs.utimesSync(f2, t, t)
     const w = new NodeWriter(makeOptions({ filename: 'sort2' }))
-      ; (w as any).currentFilePath = path.join(TEST_DIR, 'none')
+    ;(w as any).currentFilePath = path.join(TEST_DIR, 'none')
     const list = (w as any).listManagedFiles()
     expect(list.length).toBe(2)
   })
@@ -433,10 +458,12 @@ describe('NodeWriter — 排序与写入失败', () => {
   })
 
   it('appendToFileWithRetry 多次失败后抛错', async () => {
-    const warn = jest.spyOn(console, 'warn').mockImplementation(() => { })
-    const w = new NodeWriter(makeOptions({ filename: 'fail', retryCount: 0, path: '/root/no-perm-xyz-nw' }))
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
+    const w = new NodeWriter(
+      makeOptions({ filename: 'fail', retryCount: 0, path: '/root/no-perm-xyz-nw' })
+    )
     w.init()
-    const err = jest.spyOn(console, 'error').mockImplementation(() => { })
+    const err = jest.spyOn(console, 'error').mockImplementation(() => {})
     await expect((w as any).appendToFileWithRetry('x')).rejects.toThrow()
     err.mockRestore()
     warn.mockRestore()
@@ -445,9 +472,9 @@ describe('NodeWriter — 排序与写入失败', () => {
   it('appendToFileWithRetry 第一次失败后会重试并成功', async () => {
     const w = new NodeWriter(makeOptions({ filename: 'retry', retryCount: 1, retryDelay: 1 }))
     w.init()
-      ; (w as any).currentFilePath = TEST_DIR
+    ;(w as any).currentFilePath = TEST_DIR
     await (w as any).appendToFileWithRetry('ok')
-    const files = fs.readdirSync(TEST_DIR).filter(f => f.endsWith('.log'))
+    const files = fs.readdirSync(TEST_DIR).filter((f) => f.endsWith('.log'))
     expect(files.length).toBeGreaterThan(0)
   })
 
@@ -473,19 +500,39 @@ describe('NodeWriter — 排序与写入失败', () => {
     fs.utimesSync(f, past, past)
     const list = (w as any).listManagedFiles()
     expect(list[0].fileDate).toBeNull()
-      ; (w as any).pruneExpiredFiles()
+    ;(w as any).pruneExpiredFiles()
     expect(fs.existsSync(f)).toBe(false)
   })
 
   it('checkDateRotation 在无日期路径时触发重置', () => {
     const w = new NodeWriter(makeOptions({ filename: 'chk' }))
-      ; (w as any).currentFilePath = 'nodate.log'
-    const initSpy = jest.spyOn(w as any, 'initializeCurrentFile').mockImplementation(() => { })
-    const cleanSpy = jest.spyOn(w as any, 'cleanupOldFiles').mockImplementation(() => { })
-      ; (w as any).checkDateRotation()
+    ;(w as any).currentFilePath = 'nodate.log'
+    const initSpy = jest.spyOn(w as any, 'initializeCurrentFile').mockImplementation(() => {})
+    const cleanSpy = jest.spyOn(w as any, 'cleanupOldFiles').mockImplementation(() => {})
+    ;(w as any).checkDateRotation()
     expect(initSpy).toHaveBeenCalled()
     expect(cleanSpy).toHaveBeenCalled()
     initSpy.mockRestore()
     cleanSpy.mockRestore()
+  })
+
+  it('getShardIndex 解析分片索引', () => {
+    const w = new NodeWriter(makeOptions({ filename: 'si' }))
+    // 主文件（无索引）返回 0
+    expect((w as any).getShardIndex('app-2026-01-01.log')).toBe(0)
+    // 分片文件返回索引
+    expect((w as any).getShardIndex('app-2026-01-01.3.log')).toBe(3)
+    // .gz 文件返回 MAX_SAFE_INTEGER
+    expect((w as any).getShardIndex('app-2026-01-01.log.gz')).toBe(Number.MAX_SAFE_INTEGER)
+  })
+
+  it('getIndexedFilePath 生成正确路径', () => {
+    const w = new NodeWriter(makeOptions({ filename: 'idx', path: '/logs' }))
+    ;(w as any).fileIndex = 0
+    const p0 = (w as any).getIndexedFilePath()
+    expect(p0).toMatch(/\/logs\/idx-\d{4}-\d{2}-\d{2}\.log$/)
+    ;(w as any).fileIndex = 1
+    const p1 = (w as any).getIndexedFilePath()
+    expect(p1).toMatch(/\/logs\/idx-\d{4}-\d{2}-\d{2}\.1\.log$/)
   })
 })

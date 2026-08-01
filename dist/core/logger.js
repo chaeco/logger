@@ -15,11 +15,17 @@ class Logger {
     constructor(options = {}, sharedFileManager) {
         this.callerInfoHelper = new caller_info_1.CallerInfoHelper();
         this.errorHandling = {
-            silent: true, onError: undefined, fallbackToConsole: true,
+            silent: true,
+            onError: undefined,
+            fallbackToConsole: true,
         };
         this.eventHandlers = new Map();
         this.levelPriority = {
-            debug: 0, info: 1, warn: 2, error: 3, silent: 999,
+            debug: 0,
+            info: 1,
+            warn: 2,
+            error: 3,
+            silent: 999,
         };
         this.level = options.level ?? 'info';
         this.name = options.name;
@@ -49,19 +55,34 @@ class Logger {
             this.configureErrorHandling(options.errorHandling);
     }
     // ─── 初始化 ──────────────────────────────────────────────
-    init() { this.fileManager?.init(); }
+    init() {
+        this.fileManager?.init();
+    }
     // ─── 核心日志方法 ─────────────────────────────────────────
-    debug(...args) { this.log('debug', ...args); }
-    info(...args) { this.log('info', ...args); }
-    warn(...args) { this.log('warn', ...args); }
-    error(...args) { this.log('error', ...args); }
+    debug(...args) {
+        this.log('debug', ...args);
+    }
+    info(...args) {
+        this.log('info', ...args);
+    }
+    warn(...args) {
+        this.log('warn', ...args);
+    }
+    error(...args) {
+        this.log('error', ...args);
+    }
     // ─── 等级控制 ─────────────────────────────────────────────
     setLevel(level) {
         const old = this.level;
         this.level = level;
-        this.emitEvent('levelChange', `日志等级已从 ${old} 更改为 ${level}`, undefined, { oldLevel: old, newLevel: level });
+        this.emitEvent('levelChange', `日志等级已从 ${old} 更改为 ${level}`, undefined, {
+            oldLevel: old,
+            newLevel: level,
+        });
     }
-    getLevel() { return this.level; }
+    getLevel() {
+        return this.level;
+    }
     // ─── 配置 ─────────────────────────────────────────────────
     configureFormat(options) {
         this.formatter.updateFormat(options);
@@ -74,19 +95,26 @@ class Logger {
         if (options.fallbackToConsole !== undefined)
             this.errorHandling.fallbackToConsole = options.fallbackToConsole;
     }
-    updateConfig(options) {
+    async updateConfig(options) {
         if (options.level !== undefined)
             this.setLevel(options.level);
         if (options.console !== undefined) {
             this.consoleEnabled = options.console.enabled ?? this.consoleEnabled;
-            this.formatter.settings.consoleColors = options.console.colors ?? this.formatter.settings.consoleColors;
-            this.formatter.settings.consoleTimestamp = options.console.timestamp ?? this.formatter.settings.consoleTimestamp;
+            this.formatter.settings.consoleColors =
+                options.console.colors ?? this.formatter.settings.consoleColors;
+            this.formatter.settings.consoleTimestamp =
+                options.console.timestamp ?? this.formatter.settings.consoleTimestamp;
         }
         if (options.file !== undefined) {
             this.fileEnabled = options.file.enabled ?? this.fileEnabled;
             if (options.file.enabled === false) {
                 if (this.fileManager && this.ownsFileManager) {
-                    void this.fileManager.close();
+                    try {
+                        await this.fileManager.close();
+                    }
+                    catch {
+                        /* ignore */
+                    }
                 }
                 if (this.ownsFileManager)
                     this.fileManager = undefined;
@@ -96,8 +124,17 @@ class Logger {
             }
             else if (this.ownsFileManager) {
                 // 文件配置变更时重建 FileManager（路径/轮转/压缩/异步策略）
-                void this.fileManager.close();
+                try {
+                    await this.fileManager.close();
+                }
+                catch {
+                    /* ignore */
+                }
                 this.fileManager = new file_manager_1.FileManager(options.file, options.async);
+            }
+            else {
+                // child logger 共享父级 FileManager，文件配置变更不生效
+                console.warn('@chaeco/logger: updateConfig file options ignored for child logger (shares parent FileManager)');
             }
         }
         if (options.format)
@@ -168,7 +205,13 @@ class Logger {
         const handlers = this.eventHandlers.get(type);
         if (!handlers?.length)
             return;
-        const event = { type, message, error, data, timestamp: (0, date_utils_1.formatNow)('YYYY-MM-DD HH:mm:ss.SSS') };
+        const event = {
+            type,
+            message,
+            error,
+            data,
+            timestamp: (0, date_utils_1.formatNow)('YYYY-MM-DD HH:mm:ss.SSS'),
+        };
         for (const h of handlers) {
             try {
                 h(event);
@@ -201,14 +244,21 @@ class Logger {
         if (!this.consoleEnabled)
             return;
         const msg = this.formatter.formatConsoleMessage(entry);
-        const consoleFn = entry.level === 'error' ? console.error : console.log;
-        consoleFn(msg);
+        if (entry.level === 'error') {
+            console.error(msg);
+        }
+        else if (entry.level === 'warn') {
+            console.warn(msg);
+        }
+        else {
+            console.log(msg);
+        }
     }
     writeToFile(entry) {
         if (!this.fileManager || !this.fileEnabled)
             return;
         const msg = this.formatter.formatMessage(entry);
-        this.fileManager.write(msg).catch(e => this.handleWriteError(e, msg, entry));
+        this.fileManager.write(msg).catch((e) => this.handleWriteError(e, msg, entry));
     }
     handleWriteError(error, message, entry) {
         const err = error instanceof Error ? error : new Error(String(error));
@@ -221,7 +271,7 @@ class Logger {
         const preview = message.length > 120 ? message.slice(0, 120) + '…' : message;
         this.emitEvent('fileWriteError', `文件写入失败: ${preview}`, err);
         this.emitEvent('error', '内部错误: file_write', err, { context: 'file_write' });
-        if (this.errorHandling.fallbackToConsole && !this.errorHandling.silent && entry)
+        if (this.errorHandling.fallbackToConsole && !this.errorHandling.silent)
             console.error('[Logger Fallback]', this.formatter.formatConsoleMessage(entry));
     }
     log(level, ...args) {
@@ -239,7 +289,13 @@ class Logger {
         }
         else if (args[0] instanceof Error) {
             message = args[0].message || String(args[0]);
-            data = args.length > 1 ? { error: args[0], additionalData: args.slice(1) } : args[0];
+            const errPayload = { message: args[0].message, name: args[0].name };
+            if (args[0].stack)
+                errPayload.stack = args[0].stack;
+            data =
+                args.length > 1
+                    ? { error: errPayload, additionalData: args.slice(1) }
+                    : { error: errPayload };
         }
         else {
             message = '';

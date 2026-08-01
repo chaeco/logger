@@ -10,6 +10,7 @@ export declare class NodeWriter {
     private fileIndex;
     private _initError;
     private compressPromise;
+    private compressionPending;
     private static readonly ONE_DAY_MS;
     /** 初始化错误（只读），如果初始化失败则值不为 undefined */
     get initError(): Error | undefined;

@@ -192,14 +192,14 @@ const log = new Logger({
 ## updateConfig 运行时重配
 
 ```typescript
-log.updateConfig({ level: 'debug' })
+await log.updateConfig({ level: 'debug' })
 
-log.updateConfig({
+await log.updateConfig({
   console: { colors: false, timestamp: false },
 })
 
 // 动态开启文件写入（初始为仅控制台时）
-log.updateConfig({
+await log.updateConfig({
   file: { enabled: true, path: './logs', filename: 'runtime' },
 })
 ```

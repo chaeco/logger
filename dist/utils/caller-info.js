@@ -19,11 +19,13 @@ class CallerInfoHelper {
         const stack = error.stack;
         if (!stack)
             return {};
-        // 尝试从缓存获取（使用堆栈的哈希作为键）
-        const stackHash = this.simpleHash(stack);
-        if (this.cache.has(stackHash)) {
-            // Map.has() 已确认键存在，get() 不会返回 undefined
-            return this.cache.get(stackHash);
+        // 使用堆栈字符串作为缓存键（无需哈希，字符串本身是唯一标识）
+        if (this.cache.has(stack)) {
+            // 缓存命中：重新插入到末尾实现 LRU 淘汰
+            const result = this.cache.get(stack);
+            this.cache.delete(stack);
+            this.cache.set(stack, result);
+            return result;
         }
         // 解析堆栈信息
         const stackLines = stack.split('\n');
@@ -34,10 +36,7 @@ class CallerInfoHelper {
             // 跳过 Error 本身的行（V8 堆栈首行）
             if (line.startsWith('Error'))
                 continue;
-            // 跳过所有 logger 内部帧，包括：
-            //   CallerInfoHelper.getCallerInfo  → 当前函数
-            //   Logger.createLogEntry           → 内部调用 getCallerInfo 的方法
-            //   Logger.log / .debug / .info …  → 公开日志方法
+            // 跳过所有 logger 内部帧
             if (line.includes('Logger.log') ||
                 line.includes('Logger.info') ||
                 line.includes('Logger.warn') ||
@@ -55,8 +54,7 @@ class CallerInfoHelper {
                 const lineNumber = parseInt(match[2], 10);
                 // 排除 Node.js 内部文件和 logger 模块文件
                 if (filePath &&
-                    !filePath.includes('/plugins/logger/') &&
-                    !filePath.includes('\\plugins\\logger\\') &&
+                    !filePath.includes('@chaeco/logger') &&
                     !filePath.includes('node:internal') &&
                     !filePath.includes('node_modules') &&
                     !filePath.startsWith('node:')) {
@@ -72,7 +70,7 @@ class CallerInfoHelper {
                         // 忽略路径简化失败
                     }
                     const result = { file: simplifiedPath, line: lineNumber };
-                    this.cacheResult(stackHash, result);
+                    this.cacheResult(stack, result);
                     return result;
                 }
             }
@@ -86,24 +84,6 @@ class CallerInfoHelper {
     /** 获取缓存大小（调试用） */
     getCacheSize() {
         return this.cache.size;
-    }
-    // ─── 私有方法 ─────────────────────────────────────────────
-    /**
-     * 53 位非加密哈希（双 32 位混合），碰撞概率约为 32 位哈希的 1/20亿。
-     * 参考：https://stackoverflow.com/a/52171480
-     */
-    simpleHash(str) {
-        let h1 = 0xdeadbeef;
-        let h2 = 0x41c6ce57;
-        for (let i = 0; i < str.length; i++) {
-            const char = str.charCodeAt(i);
-            h1 = Math.imul(h1 ^ char, 2654435761);
-            h2 = Math.imul(h2 ^ char, 1597334677);
-        }
-        h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
-        h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
-        const hash = 4294967296 * (2097151 & h2) + (h1 >>> 0);
-        return hash.toString(36);
     }
     /** LRU 缓存写入：满时淘汰最旧项 */
     cacheResult(key, info) {

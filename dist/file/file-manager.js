@@ -29,7 +29,7 @@ class FileManager {
                 queueSize: asyncOptions.queueSize ?? 5000,
                 batchSize: asyncOptions.batchSize ?? 200,
                 flushInterval: asyncOptions.flushInterval ?? 500,
-                overflowStrategy: asyncOptions.overflowStrategy ?? 'drop',
+                overflowStrategy: asyncOptions.overflowStrategy ?? 'block',
             };
             this.asyncQueue = new async_queue_1.AsyncQueue(ao, (msgs) => this.nodeWriter.writeBatch(msgs));
             this.asyncQueue.start();
@@ -56,8 +56,14 @@ class FileManager {
             return;
         if (!this.isInitialized && !this.initError)
             this.init();
-        if (this.initError)
-            return;
+        if (this.initError) {
+            // 存在之前的初始化失败，尝试重新初始化
+            this.initError = undefined;
+            this.isInitialized = false;
+            this.init();
+            if (this.initError)
+                return;
+        }
         if (this.asyncQueue) {
             await this.asyncQueue.enqueue(message);
             return;

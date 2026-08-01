@@ -35,16 +35,16 @@ appLogger.info('服务初始化完成', { port: 3000 })
 // ─── 3. 子 Logger（继承父配置）───────────────────────────────────────────────
 
 const dbLogger = appLogger.child('db')
-dbLogger.info('已连接到 PostgreSQL')   // 输出：[app:db] INFO ...
+dbLogger.info('已连接到 PostgreSQL') // 输出：[app:db] INFO ...
 
 const httpLogger = appLogger.child('http')
-httpLogger.info('GET /api/users 200')  // 输出：[app:http] INFO ...
+httpLogger.info('GET /api/users 200') // 输出：[app:http] INFO ...
 
 // ─── 4. 日志级别控制 ─────────────────────────────────────────────────────────
 
-appLogger.setLevel('warn')   // 运行时提升级别，debug/info 不再输出
+appLogger.setLevel('warn') // 运行时提升级别，debug/info 不再输出
 appLogger.warn('级别已提升至 warn')
-appLogger.setLevel('debug')  // 恢复
+appLogger.setLevel('debug') // 恢复
 
 // ─── 5. 参数变参调用 ─────────────────────────────────────────────────────────
 

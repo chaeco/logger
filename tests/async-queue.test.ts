@@ -1,9 +1,14 @@
 import { AsyncQueue } from '../src/file/async-queue'
 
-function makeOptions(overrides: Partial<{
-  enabled: boolean; queueSize: number; batchSize: number
-  flushInterval: number; overflowStrategy: 'drop' | 'block' | 'overflow'
-}> = {}) {
+function makeOptions(
+  overrides: Partial<{
+    enabled: boolean
+    queueSize: number
+    batchSize: number
+    flushInterval: number
+    overflowStrategy: 'drop' | 'block'
+  }> = {}
+) {
   return {
     enabled: true,
     queueSize: 100,
@@ -27,7 +32,9 @@ describe('AsyncQueue — enqueue & flush', () => {
 
   it('flush 将消息传递给 onFlush', async () => {
     const received: string[][] = []
-    const onFlush = jest.fn(async (msgs: string[]) => { received.push(msgs) })
+    const onFlush = jest.fn(async (msgs: string[]) => {
+      received.push(msgs)
+    })
     const q = new AsyncQueue(makeOptions({ batchSize: 100 }), onFlush)
     await q.enqueue('alpha')
     await q.enqueue('beta')
@@ -40,6 +47,18 @@ describe('AsyncQueue — enqueue & flush', () => {
     const onFlush = jest.fn().mockResolvedValue(undefined)
     const q = new AsyncQueue(makeOptions(), onFlush)
     await q.flush()
+    expect(onFlush).not.toHaveBeenCalled()
+    await q.stop()
+  })
+
+  it('正在写入时 flush 直接返回', async () => {
+    const onFlush = jest.fn().mockResolvedValue(undefined)
+    const q = new AsyncQueue(makeOptions({ batchSize: 100 }), onFlush)
+    ;(q as any).queue.push('msg')
+    ;(q as any).isWriting = true
+    await q.flush()
+    // isWriting=true 时 flush 应直接返回，不清空队列
+    expect(q.size).toBe(1)
     expect(onFlush).not.toHaveBeenCalled()
     await q.stop()
   })
@@ -70,7 +89,9 @@ describe('AsyncQueue — enqueue & flush', () => {
 describe('AsyncQueue — start & stop', () => {
   it('stop 刷新剩余队列（不丢失消息）', async () => {
     const received: string[] = []
-    const onFlush = jest.fn(async (msgs: string[]) => { received.push(...msgs) })
+    const onFlush = jest.fn(async (msgs: string[]) => {
+      received.push(...msgs)
+    })
     const q = new AsyncQueue(makeOptions({ batchSize: 100, flushInterval: 60000 }), onFlush)
     await q.enqueue('x')
     await q.enqueue('y')
@@ -116,19 +137,38 @@ describe('AsyncQueue — start & stop', () => {
     const q = new AsyncQueue(makeOptions({ batchSize: 1, flushInterval: 60000 }), onFlush)
     ;(q as any).queue.push('x')
     ;(q as any).isWriting = true
-    setTimeout(() => { (q as any).isWriting = false }, 5)
+    setTimeout(() => {
+      ;(q as any).isWriting = false
+    }, 5)
     await q.stop()
     expect(onFlush).toHaveBeenCalled()
   })
 
   it('stop 多次失败后输出错误提示', async () => {
-    const spy = jest.spyOn(console, 'error').mockImplementation(() => { })
-    const onFlush = jest.fn(async () => { throw new Error('fail') })
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => {})
+    const onFlush = jest.fn(async () => {
+      throw new Error('fail')
+    })
     const q = new AsyncQueue(makeOptions({ batchSize: 1, flushInterval: 60000 }), onFlush)
     ;(q as any).queue.push('x')
     await q.stop()
     expect(spy).toHaveBeenCalled()
     spy.mockRestore()
+  })
+
+  it('stop 后 enqueue 被拒绝', async () => {
+    const onFlush = jest.fn().mockResolvedValue(undefined)
+    const q = new AsyncQueue(makeOptions({ batchSize: 100 }), onFlush)
+    await q.stop()
+    // stop 后 isStopping 为 true，enqueue 应立即返回
+    await q.enqueue('should be ignored')
+    expect(q.size).toBe(0)
+  })
+
+  it('空队列 stop 不抛出', async () => {
+    const onFlush = jest.fn().mockResolvedValue(undefined)
+    const q = new AsyncQueue(makeOptions(), onFlush)
+    await expect(q.stop()).resolves.not.toThrow()
   })
 })
 
@@ -136,8 +176,13 @@ describe('AsyncQueue — start & stop', () => {
 
 describe('AsyncQueue — overflow 策略', () => {
   it('策略 drop：队列满时新消息被丢弃', async () => {
-    const onFlush = jest.fn(async () => { /* 永不刷新 */ })
-    const q = new AsyncQueue(makeOptions({ queueSize: 3, batchSize: 100, overflowStrategy: 'drop' }), onFlush)
+    const onFlush = jest.fn(async () => {
+      /* 永不刷新 */
+    })
+    const q = new AsyncQueue(
+      makeOptions({ queueSize: 3, batchSize: 100, overflowStrategy: 'drop' }),
+      onFlush
+    )
     // 填满队列
     for (let i = 0; i < 3; i++) (q as any).queue.push(`msg${i}`)
     // 再入队应被丢弃
@@ -150,7 +195,7 @@ describe('AsyncQueue — overflow 策略', () => {
     const onFlush = jest.fn().mockResolvedValue(undefined)
     const q = new AsyncQueue(
       makeOptions({ queueSize: 2, batchSize: 10, overflowStrategy: 'block' }),
-      onFlush,
+      onFlush
     )
     // 填满
     for (let i = 0; i < 2; i++) (q as any).queue.push(`m${i}`)
@@ -160,23 +205,11 @@ describe('AsyncQueue — overflow 策略', () => {
     await q.stop()
   })
 
-  it('策略 overflow：行为与 block 等效', async () => {
-    const onFlush = jest.fn().mockResolvedValue(undefined)
-    const q = new AsyncQueue(
-      makeOptions({ queueSize: 2, batchSize: 10, overflowStrategy: 'overflow' }),
-      onFlush,
-    )
-    for (let i = 0; i < 2; i++) (q as any).queue.push(`m${i}`)
-    await q.enqueue('new')
-    expect(onFlush).toHaveBeenCalled()
-    await q.stop()
-  })
-
   it('队列满且正在写入时不会忙等阻塞事件循环', async () => {
     const onFlush = jest.fn().mockResolvedValue(undefined)
     const q = new AsyncQueue(
       makeOptions({ queueSize: 1, batchSize: 1, overflowStrategy: 'block' }),
-      onFlush,
+      onFlush
     )
     // 人为制造“队列满 + 正在写入”的状态
     ;(q as any).queue.push('full')
@@ -199,7 +232,7 @@ describe('AsyncQueue — overflow 策略', () => {
 
 describe('AsyncQueue — flush 失败退回', () => {
   it('onFlush 抛出时消息重新入队', async () => {
-    const spy = jest.spyOn(console, 'error').mockImplementation(() => { })
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => {})
     let callCount = 0
     const onFlush = jest.fn(async () => {
       callCount++

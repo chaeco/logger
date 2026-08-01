@@ -1,6 +1,9 @@
 type ColorFn = (text: string) => string
 
-const ansi = (code: number): ColorFn => (text: string) => `\x1b[${code}m${text}\x1b[0m`
+const ansi =
+  (code: number): ColorFn =>
+  (text: string) =>
+    `\x1b[${code}m${text}\x1b[0m`
 
 const GRAY = ansi(90)
 const BLUE = ansi(34)
@@ -18,11 +21,16 @@ const CYAN = ansi(36)
 export class ColorUtils {
   static getLevelColor(level: string): ColorFn {
     switch (level.toLowerCase()) {
-      case 'debug': return GRAY
-      case 'info': return BLUE
-      case 'warn': return YELLOW
-      case 'error': return RED
-      default: return WHITE
+      case 'debug':
+        return GRAY
+      case 'info':
+        return BLUE
+      case 'warn':
+        return YELLOW
+      case 'error':
+        return RED
+      default:
+        return WHITE
     }
   }
 

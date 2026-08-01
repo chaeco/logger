@@ -28,7 +28,7 @@ export declare class Logger {
     getLevel(): LogLevel;
     configureFormat(options: Partial<FormatOptions>): void;
     configureErrorHandling(options: ErrorHandlingOptions): void;
-    updateConfig(options: LoggerOptions): void;
+    updateConfig(options: LoggerOptions): Promise<void>;
     on(type: LoggerEventType, handler: LoggerEventHandler): void;
     off(type: LoggerEventType, handler: LoggerEventHandler): void;
     child(name: string): Logger;

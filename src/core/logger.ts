@@ -1,8 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import {
-  LogLevel, LoggerOptions, LogEntry,
-  LoggerEventType, LoggerEventHandler, LoggerEvent,
-  FormatOptions, ErrorHandlingOptions,
+  LogLevel,
+  LoggerOptions,
+  LogEntry,
+  LoggerEventType,
+  LoggerEventHandler,
+  LoggerEvent,
+  FormatOptions,
+  ErrorHandlingOptions,
 } from './types'
 import { FileManager } from '../file/file-manager'
 import { CallerInfoHelper } from '../utils/caller-info'
@@ -25,11 +30,17 @@ export class Logger {
   private readonly formatter: LogFormatter
   private readonly callerInfoHelper = new CallerInfoHelper()
   private readonly errorHandling: Required<ErrorHandlingOptions> = {
-    silent: true, onError: undefined as any, fallbackToConsole: true,
+    silent: true,
+    onError: undefined as any,
+    fallbackToConsole: true,
   }
   private readonly eventHandlers: Map<LoggerEventType, LoggerEventHandler[]> = new Map()
   private readonly levelPriority: Record<LogLevel, number> = {
-    debug: 0, info: 1, warn: 2, error: 3, silent: 999,
+    debug: 0,
+    info: 1,
+    warn: 2,
+    error: 3,
+    silent: 999,
   }
 
   constructor(options: LoggerOptions = {}, sharedFileManager?: FileManager) {
@@ -65,24 +76,39 @@ export class Logger {
 
   // ─── 初始化 ──────────────────────────────────────────────
 
-  init(): void { this.fileManager?.init() }
+  init(): void {
+    this.fileManager?.init()
+  }
 
   // ─── 核心日志方法 ─────────────────────────────────────────
 
-  debug(...args: any[]): void { this.log('debug', ...args) }
-  info(...args: any[]): void { this.log('info', ...args) }
-  warn(...args: any[]): void { this.log('warn', ...args) }
-  error(...args: any[]): void { this.log('error', ...args) }
+  debug(...args: any[]): void {
+    this.log('debug', ...args)
+  }
+  info(...args: any[]): void {
+    this.log('info', ...args)
+  }
+  warn(...args: any[]): void {
+    this.log('warn', ...args)
+  }
+  error(...args: any[]): void {
+    this.log('error', ...args)
+  }
 
   // ─── 等级控制 ─────────────────────────────────────────────
 
   setLevel(level: LogLevel): void {
     const old = this.level
     this.level = level
-    this.emitEvent('levelChange', `日志等级已从 ${old} 更改为 ${level}`, undefined, { oldLevel: old, newLevel: level })
+    this.emitEvent('levelChange', `日志等级已从 ${old} 更改为 ${level}`, undefined, {
+      oldLevel: old,
+      newLevel: level,
+    })
   }
 
-  getLevel(): LogLevel { return this.level }
+  getLevel(): LogLevel {
+    return this.level
+  }
 
   // ─── 配置 ─────────────────────────────────────────────────
 
@@ -93,29 +119,45 @@ export class Logger {
   configureErrorHandling(options: ErrorHandlingOptions): void {
     if (options.silent !== undefined) this.errorHandling.silent = options.silent
     if (options.onError !== undefined) this.errorHandling.onError = options.onError
-    if (options.fallbackToConsole !== undefined) this.errorHandling.fallbackToConsole = options.fallbackToConsole
+    if (options.fallbackToConsole !== undefined)
+      this.errorHandling.fallbackToConsole = options.fallbackToConsole
   }
 
-  updateConfig(options: LoggerOptions): void {
+  async updateConfig(options: LoggerOptions): Promise<void> {
     if (options.level !== undefined) this.setLevel(options.level)
     if (options.console !== undefined) {
       this.consoleEnabled = options.console.enabled ?? this.consoleEnabled
-      this.formatter.settings.consoleColors = options.console.colors ?? this.formatter.settings.consoleColors
-      this.formatter.settings.consoleTimestamp = options.console.timestamp ?? this.formatter.settings.consoleTimestamp
+      this.formatter.settings.consoleColors =
+        options.console.colors ?? this.formatter.settings.consoleColors
+      this.formatter.settings.consoleTimestamp =
+        options.console.timestamp ?? this.formatter.settings.consoleTimestamp
     }
     if (options.file !== undefined) {
       this.fileEnabled = options.file.enabled ?? this.fileEnabled
       if (options.file.enabled === false) {
         if (this.fileManager && this.ownsFileManager) {
-          void this.fileManager.close()
+          try {
+            await this.fileManager.close()
+          } catch {
+            /* ignore */
+          }
         }
         if (this.ownsFileManager) this.fileManager = undefined
       } else if (!this.fileManager) {
         this.fileManager = new FileManager(options.file, options.async)
       } else if (this.ownsFileManager) {
         // 文件配置变更时重建 FileManager（路径/轮转/压缩/异步策略）
-        void this.fileManager.close()
+        try {
+          await this.fileManager.close()
+        } catch {
+          /* ignore */
+        }
         this.fileManager = new FileManager(options.file, options.async)
+      } else {
+        // child logger 共享父级 FileManager，文件配置变更不生效
+        console.warn(
+          '@chaeco/logger: updateConfig file options ignored for child logger (shares parent FileManager)'
+        )
       }
     }
     if (options.format) this.configureFormat(options.format)
@@ -188,9 +230,19 @@ export class Logger {
   private emitEvent(type: LoggerEventType, message: string, error?: Error, data?: any): void {
     const handlers = this.eventHandlers.get(type)
     if (!handlers?.length) return
-    const event: LoggerEvent = { type, message, error, data, timestamp: formatNow('YYYY-MM-DD HH:mm:ss.SSS') }
+    const event: LoggerEvent = {
+      type,
+      message,
+      error,
+      data,
+      timestamp: formatNow('YYYY-MM-DD HH:mm:ss.SSS'),
+    }
     for (const h of handlers) {
-      try { h(event) } catch (e) { console.error('Error in logger event handler:', e) }
+      try {
+        h(event)
+      } catch (e) {
+        console.error('Error in logger event handler:', e)
+      }
     }
   }
 
@@ -214,23 +266,32 @@ export class Logger {
   private writeToConsole(entry: LogEntry): void {
     if (!this.consoleEnabled) return
     const msg = this.formatter.formatConsoleMessage(entry)
-    const consoleFn = entry.level === 'error' ? console.error : console.log
-    consoleFn(msg)
+    if (entry.level === 'error') {
+      console.error(msg)
+    } else if (entry.level === 'warn') {
+      console.warn(msg)
+    } else {
+      console.log(msg)
+    }
   }
 
   private writeToFile(entry: LogEntry): void {
     if (!this.fileManager || !this.fileEnabled) return
     const msg = this.formatter.formatMessage(entry)
-    this.fileManager.write(msg).catch(e => this.handleWriteError(e, msg, entry))
+    this.fileManager.write(msg).catch((e) => this.handleWriteError(e, msg, entry))
   }
 
   private handleWriteError(error: unknown, message: string, entry: LogEntry): void {
     const err = error instanceof Error ? error : new Error(String(error))
-    try { this.errorHandling.onError?.(err, 'file_write') } catch (e) { console.error('Error in error handler:', e) }
+    try {
+      this.errorHandling.onError?.(err, 'file_write')
+    } catch (e) {
+      console.error('Error in error handler:', e)
+    }
     const preview = message.length > 120 ? message.slice(0, 120) + '…' : message
     this.emitEvent('fileWriteError', `文件写入失败: ${preview}`, err)
     this.emitEvent('error', '内部错误: file_write', err, { context: 'file_write' })
-    if (this.errorHandling.fallbackToConsole && !this.errorHandling.silent && entry)
+    if (this.errorHandling.fallbackToConsole && !this.errorHandling.silent)
       console.error('[Logger Fallback]', this.formatter.formatConsoleMessage(entry))
   }
 
@@ -248,7 +309,12 @@ export class Logger {
       data = args.length === 2 ? args[1] : args.length > 2 ? args.slice(1) : undefined
     } else if (args[0] instanceof Error) {
       message = args[0].message || String(args[0])
-      data = args.length > 1 ? { error: args[0], additionalData: args.slice(1) } : args[0]
+      const errPayload: Record<string, unknown> = { message: args[0].message, name: args[0].name }
+      if (args[0].stack) errPayload.stack = args[0].stack
+      data =
+        args.length > 1
+          ? { error: errPayload, additionalData: args.slice(1) }
+          : { error: errPayload }
     } else {
       message = ''
       data = args.length === 1 ? args[0] : args

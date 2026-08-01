@@ -180,7 +180,7 @@ export class LogFormatter {
           }
           return value
         },
-        indent,
+        indent
       )
     } catch {
       try {

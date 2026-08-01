@@ -19,11 +19,14 @@ export class NodeWriter {
   private _initError: Error | undefined
   // 串行化压缩任务：下一次压缩等待上一次完成后再起，避免并发读写竞态
   private compressPromise: Promise<void> = Promise.resolve()
+  private compressionPending = false
 
   private static readonly ONE_DAY_MS = 24 * 60 * 60 * 1000
 
   /** 初始化错误（只读），如果初始化失败则值不为 undefined */
-  get initError(): Error | undefined { return this._initError }
+  get initError(): Error | undefined {
+    return this._initError
+  }
 
   constructor(options: Required<FileOptions>) {
     this.options = {
@@ -66,7 +69,10 @@ export class NodeWriter {
       }
     } catch (e) {
       this._initError = e instanceof Error ? e : new Error(String(e))
-      console.warn(`@chaeco/logger: Failed to create log directory "${this.options.path}":`, this._initError.message)
+      console.warn(
+        `@chaeco/logger: Failed to create log directory "${this.options.path}":`,
+        this._initError.message
+      )
     }
   }
 
@@ -120,25 +126,34 @@ export class NodeWriter {
     try {
       this.pruneExpiredFiles()
 
-      if (this.options.compress) {
+      if (this.options.compress && !this.compressionPending) {
+        this.compressionPending = true
         this.compressPromise = this.compressPromise
           .then(async () => {
             await this.compressOldLogs()
             this.pruneFilesByCount()
+            this.compressionPending = false
           })
-          .catch(() => { /* silent */ })
-      } else {
+          .catch(() => {
+            this.compressionPending = false
+          })
+      } else if (!this.options.compress) {
         this.pruneFilesByCount()
       }
-    } catch { /* ignore cleanup errors */ }
+    } catch {
+      /* ignore cleanup errors */
+    }
   }
 
   private async compressOldLogs(): Promise<void> {
     const today = formatNow('YYYY-MM-DD')
     try {
-      const files = fs.readdirSync(this.options.path)
-        .filter(f => f.startsWith(this.options.filename) && f.endsWith('.log') && !f.endsWith('.log.gz'))
-        .map(f => ({ name: f, path: path.join(this.options.path, f) }))
+      const files = fs
+        .readdirSync(this.options.path)
+        .filter(
+          (f) => f.startsWith(this.options.filename) && f.endsWith('.log') && !f.endsWith('.log.gz')
+        )
+        .map((f) => ({ name: f, path: path.join(this.options.path, f) }))
 
       // 按日期分组，跳过今天和当前正在写入的文件
       const byDate = new Map<string, Array<{ name: string; path: string }>>()
@@ -169,21 +184,39 @@ export class NodeWriter {
           // 原子替换：先写 .tmp，成功后 rename，保证中途失败不损坏目标
           fs.renameSync(tmpPath, gzPath)
           if (sourceArchivePath) {
-            try { fs.unlinkSync(sourceArchivePath) } catch { /* ignore */ }
+            try {
+              fs.unlinkSync(sourceArchivePath)
+            } catch {
+              /* ignore */
+            }
           }
           // rename 成功后再删除原始分片
           for (const file of dateFiles) {
-            try { await unlink(file.path) } catch { /* ignore */ }
+            try {
+              await unlink(file.path)
+            } catch {
+              /* ignore */
+            }
           }
         } catch {
           // 清理残留临时文件
-          try { fs.unlinkSync(tmpPath) } catch { /* ignore */ }
+          try {
+            fs.unlinkSync(tmpPath)
+          } catch {
+            /* ignore */
+          }
           if (sourceArchivePath && fs.existsSync(sourceArchivePath) && !fs.existsSync(gzPath)) {
-            try { fs.renameSync(sourceArchivePath, gzPath) } catch { /* ignore */ }
+            try {
+              fs.renameSync(sourceArchivePath, gzPath)
+            } catch {
+              /* ignore */
+            }
           }
         }
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   private listManagedFiles(): Array<{
@@ -195,9 +228,12 @@ export class NodeWriter {
     shardIndex: number
     isCurrent: boolean
   }> {
-    return fs.readdirSync(this.options.path)
-      .filter(f => f.startsWith(this.options.filename) && (f.endsWith('.log') || f.endsWith('.log.gz')))
-      .map(f => {
+    return fs
+      .readdirSync(this.options.path)
+      .filter(
+        (f) => f.startsWith(this.options.filename) && (f.endsWith('.log') || f.endsWith('.log.gz'))
+      )
+      .map((f) => {
         const stats = fs.statSync(path.join(this.options.path, f))
         const filePath = path.join(this.options.path, f)
         const fileDate = f.match(/(\d{4}-\d{2}-\d{2})/)?.[1] ?? null
@@ -217,7 +253,8 @@ export class NodeWriter {
         if (b.sortKey !== a.sortKey) return b.sortKey - a.sortKey
         if (a.isCurrent !== b.isCurrent) return a.isCurrent ? -1 : 1
         if (b.shardIndex !== a.shardIndex) return b.shardIndex - a.shardIndex
-        if (b.stats.mtime.getTime() !== a.stats.mtime.getTime()) return b.stats.mtime.getTime() - a.stats.mtime.getTime()
+        if (b.stats.mtime.getTime() !== a.stats.mtime.getTime())
+          return b.stats.mtime.getTime() - a.stats.mtime.getTime()
         return b.name.localeCompare(a.name)
       })
   }
@@ -230,9 +267,15 @@ export class NodeWriter {
   private pruneExpiredFiles(): void {
     const maxAgeMs = this.options.maxAge * NodeWriter.ONE_DAY_MS
     for (const file of this.listManagedFiles()) {
-      const ageBasis = file.fileDate ? new Date(file.fileDate).getTime() : file.stats.mtime.getTime()
+      const ageBasis = file.fileDate
+        ? new Date(file.fileDate).getTime()
+        : file.stats.mtime.getTime()
       if (Date.now() - ageBasis > maxAgeMs) {
-        try { fs.unlinkSync(file.path) } catch { /* ignore */ }
+        try {
+          fs.unlinkSync(file.path)
+        } catch {
+          /* ignore */
+        }
       }
     }
   }
@@ -241,7 +284,11 @@ export class NodeWriter {
     const files = this.listManagedFiles()
     if (files.length <= this.options.maxFiles) return
     for (const file of files.slice(this.options.maxFiles)) {
-      try { fs.unlinkSync(file.path) } catch { /* ignore */ }
+      try {
+        fs.unlinkSync(file.path)
+      } catch {
+        /* ignore */
+      }
     }
   }
 
@@ -252,7 +299,7 @@ export class NodeWriter {
   private streamCompressDayFiles(
     dateFiles: Array<{ name: string; path: string }>,
     outPath: string,
-    existingArchivePath?: string,
+    existingArchivePath?: string
   ): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       const gzipStream = zlib.createGzip()
@@ -260,7 +307,7 @@ export class NodeWriter {
       const sources: Array<{ path: string; compressed: boolean }> = []
 
       if (existingArchivePath) sources.push({ path: existingArchivePath, compressed: true })
-      dateFiles.forEach(file => sources.push({ path: file.path, compressed: false }))
+      dateFiles.forEach((file) => sources.push({ path: file.path, compressed: false }))
 
       gzipStream.pipe(outStream)
       outStream.on('finish', resolve)
@@ -316,7 +363,7 @@ export class NodeWriter {
     let lastError: Error | undefined
     for (let i = 0; i <= retryCount; i++) {
       try {
-        if (i > 0) await new Promise(r => setTimeout(r, retryDelay * i))
+        if (i > 0) await new Promise((r) => setTimeout(r, retryDelay * i))
         this.ensureLogDirectory()
         fs.appendFileSync(this.currentFilePath, content, { mode: 0o644 })
         return

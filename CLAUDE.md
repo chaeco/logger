@@ -9,7 +9,7 @@
 
 ```bash
 npm run build          # TypeScript compile to dist/
-npm test               # Jest (162 tests)
+npm test               # Jest (196 tests)
 npm run test:coverage  # Jest with coverage
 npm run lint           # ESLint
 npm run format:check   # Prettier check
@@ -37,7 +37,7 @@ npm run format:check   # Prettier check
 
 ### Gate
 
-Run `npm run build && npm test` before committing. Coverage target: keep 162 tests passing.
+Run `npm run build && npm test` before committing. Coverage target: keep 196 tests passing.
 
 ---
 

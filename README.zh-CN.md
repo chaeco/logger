@@ -2,12 +2,12 @@
 
 一个功能丰富、高性能的 Node.js 日志库。
 
-[![npm version](https://img.shields.io/badge/版本-1.0.1-blue.svg)](https://github.com/chaeco/logger)
+[![npm version](https://img.shields.io/badge/版本-1.0.2-blue.svg)](https://github.com/chaeco/logger)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-3178c6.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D16-339933.svg)](https://nodejs.org/)
 [![Build](https://img.shields.io/badge/构建-通过-brightgreen.svg)](https://github.com/chaeco/logger)
-[![Coverage](https://img.shields.io/badge/测试-162%20tests-brightgreen.svg)](https://github.com/chaeco/logger)
+[![Coverage](https://img.shields.io/badge/测试-196%20tests-brightgreen.svg)](https://github.com/chaeco/logger)
 
 [English](README.md) | 中文
 
@@ -19,7 +19,7 @@
   - 基于大小的自动日志轮转。
   - 基于时间/数量的自动清理旧日志。
   - 内置 Gzip 压缩归档日志。
-- ✅ **异步队列**: 高性能异步批量写入，支持 `drop` / `block` / `overflow` 溢出策略。
+- ✅ **异步队列**: 高性能异步批量写入，支持 `drop` / `block` 溢出策略。
 - ✅ **格式化**: 纯文本、JSON 格式及自定义 formatter 函数。
 - ✅ **事件钩子**: 支持 `levelChange`、`fileWriteError` 事件监听。
 - ✅ **子 Logger**: `logger.child('module')` 继承父级配置，独立命名。

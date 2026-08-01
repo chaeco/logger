@@ -43,7 +43,7 @@ const jsonLogger = new Logger({
   },
   format: {
     json: true,
-    jsonIndent: 0,       // 单行 JSON，利于日志采集器解析
+    jsonIndent: 0, // 单行 JSON，利于日志采集器解析
     includeName: true,
     includeStack: false, // 生产环境关闭调用栈（性能）
   },
@@ -101,10 +101,10 @@ const dynamicLogger = new Logger({ name: 'dyn', file: { enabled: false } })
 
 dynamicLogger.info('初始级别 info')
 
-dynamicLogger.updateConfig({ level: 'debug' })
+await dynamicLogger.updateConfig({ level: 'debug' })
 dynamicLogger.debug('现在可以看到 debug 了')
 
-dynamicLogger.updateConfig({
+await dynamicLogger.updateConfig({
   file: { enabled: true, path: './logs', filename: 'dynamic' },
 })
 dynamicLogger.info('文件写入已开启')
