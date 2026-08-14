@@ -138,8 +138,12 @@ export class Logger {
         if (this.fileManager && this.ownsFileManager) {
           try {
             await this.fileManager.close()
-          } catch {
-            /* ignore */
+          } catch (e) {
+            // 关闭失败（如异步队列仍有数据）时提示，避免静默丢日志
+            console.warn(
+              '@chaeco/logger: Failed to close FileManager while disabling file output:',
+              e instanceof Error ? e.message : String(e)
+            )
           }
         }
         if (this.ownsFileManager) this.fileManager = undefined
@@ -149,8 +153,12 @@ export class Logger {
         // 文件配置变更时重建 FileManager（路径/轮转/压缩/异步策略）
         try {
           await this.fileManager.close()
-        } catch {
-          /* ignore */
+        } catch (e) {
+          // 旧 FileManager 关闭失败（如残留缓冲）时提示，避免数据静默丢失
+          console.warn(
+            '@chaeco/logger: Failed to close previous FileManager while applying file config changes:',
+            e instanceof Error ? e.message : String(e)
+          )
         }
         this.fileManager = new FileManager(options.file, options.async)
       } else {
@@ -191,6 +199,8 @@ export class Logger {
     }
     if (this.fileManager) {
       const fmOpts = this.fileManager.getOptions()
+      // 注意：child logger 与父级共享同一个 FileManager（见下方 new Logger(opts, this.fileManager)），
+      // 这里的 file 配置仅用于让子级携带配置信息，实际写入路径/轮转/压缩均由共享的父级 FileManager 决定。
       opts.file = {
         enabled: true,
         path: fmOpts.path,

@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Logger — Node.js 高性能日志库</title>
+  <meta name="description" content="Logger：功能丰富的 Node.js 日志库。文件轮转、gzip 压缩、异步批量写入、子 logger、事件钩子与 196 个测试覆盖。" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0f14'/%3E%3Ctext x='16' y='23' font-family='monospace' font-size='18' font-weight='700' fill='%2334d399' text-anchor='middle'%3E%25%3C/text%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到主要内容</a>
+
+  <div class="backdrop" aria-hidden="true">
+    <div class="backdrop__grid"></div>
+    <div class="backdrop__glow"></div>
+  </div>
+
+  <header class="nav">
+    <div class="nav__inner">
+      <a class="brand" href="#top">
+        <span class="brand__mark" aria-hidden="true">%</span>
+        <span class="brand__name">logger</span>
+      </a>
+      <nav class="nav__links" aria-label="页面导航">
+        <a href="#why">为什么</a>
+        <a href="#features">特性</a>
+        <a href="#demo">用法</a>
+        <a href="#queue">异步队列</a>
+        <a href="#install">安装</a>
+      </nav>
+      <a class="btn btn--solid nav__cta" href="#install">开始使用</a>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <!-- ── Hero ───────────────────────────────────────────── -->
+    <section class="hero" id="top">
+      <div class="hero__inner">
+        <div class="hero__copy">
+          <p class="eyebrow reveal">Node.js · 高性能 · 生产就绪</p>
+          <h1 class="hero__title">
+            <span class="line"><span class="word">日志，</span></span>
+            <span class="line"><span class="word accent">不丢一行</span></span>
+          </h1>
+          <p class="hero__lead reveal">文件轮转、gzip 压缩、异步批量写入、子 logger 与事件钩子——为 Node.js 服务打造的生产级日志库，默认 <code>block</code> 策略不丢日志。</p>
+          <div class="hero__actions reveal">
+            <a class="btn btn--solid" href="#install">npm install @chaeco/logger</a>
+            <a class="btn btn--ghost" href="#demo">看用法 ↓</a>
+          </div>
+        </div>
+
+        <div class="terminal reveal" aria-label="Logger 演示终端">
+          <div class="terminal__bar">
+            <span class="terminal__dot" aria-hidden="true"></span>
+            <span class="terminal__dot" aria-hidden="true"></span>
+            <span class="terminal__dot" aria-hidden="true"></span>
+            <span class="terminal__title">app.log — 异步队列</span>
+          </div>
+          <div class="terminal__body">
+            <pre class="terminal__code" id="terminalCode"><code></code></pre>
+            <div class="terminal__output" id="terminalOutput">
+              <div class="terminal__row"><span class="tok-comment">-- 控制台输出</span></div>
+              <div class="terminal__row tok-sql" id="termSql"></div>
+              <div class="terminal__row"><span class="tok-comment">-- 文件写入</span></div>
+              <div class="terminal__row tok-param" id="termParams"></div>
+              <div class="terminal__row"><span class="tok-comment">-- 结果</span></div>
+              <div class="terminal__row terminal__result" id="termResult"></div>
+            </div>
+            <div class="terminal__caret" id="terminalCaret" aria-hidden="true">█</div>
+          </div>
+        </div>
+      </div>
+      <div class="hero__scroll-hint" aria-hidden="true">
+        <span>向下滚动</span>
+        <span class="hero__scroll-line"></span>
+      </div>
+    </section>
+
+    <script type="application/json" id="terminalSteps">
+    [
+      {
+        "code": "logger.info('Application started')\nlogger.warn('Warning detected', { code: 4001 })\nlogger.error(new Error('Database connection failed'))",
+        "sql":    "[api-service] 2026-08-14T12:00:00.123Z INFO  Application started",
+        "params": "→ logs/app.log（自动建目录）",
+        "result": "3 条写入 · 0 丢失"
+      },
+      {
+        "code": "const dbLogger = logger.child('db')\ndbLogger.info('Connected')   // [api-service:db]",
+        "sql":    "[api-service:db] 2026-08-14T12:00:00.200Z INFO  Connected",
+        "params": "共享同一 FileManager",
+        "result": "子 logger · 同进程共享文件写入"
+      },
+      {
+        "code": "logger.on('fileWriteError', (e) => { alert(e.error?.message) })\nawait logger.close()",
+        "sql":    "flush 异步队列 → 关闭文件句柄",
+        "params": "SIGTERM 时调用",
+        "result": "缓冲日志全部落盘"
+      }
+    ]
+    </script>
+
+    <!-- ── 事实带 ─────────────────────────────────────────── -->
+    <section class="facts" aria-label="Logger 关键事实">
+      <div class="facts__inner">
+        <div class="fact">
+          <span class="fact__value" data-count="5">5</span>
+          <span class="fact__label">日志级别（debug→error）</span>
+        </div>
+        <div class="fact">
+          <span class="fact__value" data-count="196">196</span>
+          <span class="fact__label">测试用例</span>
+        </div>
+        <div class="fact">
+          <span class="fact__value fact__value--mono">gzip</span>
+          <span class="fact__label">旧文件压缩</span>
+        </div>
+        <div class="fact">
+          <span class="fact__value fact__value--mono">block</span>
+          <span class="fact__label">默认溢出策略（不丢日志）</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 为什么 ─────────────────────────────────────────── -->
+    <section class="why section" id="why">
+      <div class="section__head">
+        <p class="eyebrow">为什么是 Logger</p>
+        <h2 class="section__title">为生产环境设计的日志库。</h2>
+        <p class="section__sub">高并发场景不丢日志、不阻塞业务，轮转压缩开箱即用。</p>
+      </div>
+      <div class="why__grid">
+        <article class="card reveal">
+          <div class="card__icon" aria-hidden="true">◷</div>
+          <h3 class="card__title">文件轮转 + 压缩</h3>
+          <p class="card__body">按大小轮转、按天数/数量清理，旧文件自动 gzip 压缩，活跃文件永远保留。</p>
+          <pre class="card__code"><code><span class="tok-var">const</span> log = <span class="tok-var">new</span> Logger({
+  file: { path: <span class="tok-str">'./logs'</span>, maxSize: <span class="tok-num">10</span> * <span class="tok-num">1024</span> * <span class="tok-num">1024</span>,
+          maxFiles: <span class="tok-num">30</span>, maxAge: <span class="tok-num">30</span>, compress: <span class="tok-kw">true</span> },
+})</code></pre>
+        </article>
+        <article class="card reveal">
+          <div class="card__icon" aria-hidden="true">?</div>
+          <h3 class="card__title">异步队列</h3>
+          <p class="card__body">批量写入 + 定时刷新，<code>block</code> / <code>drop</code> 两种溢出策略，默认不丢日志。</p>
+          <pre class="card__code"><code>async: {
+  enabled: <span class="tok-kw">true</span>, queueSize: <span class="tok-num">5000</span>,
+  batchSize: <span class="tok-num">200</span>, flushInterval: <span class="tok-num">500</span>,
+  overflowStrategy: <span class="tok-str">'block'</span>,
+}</code></pre>
+        </article>
+        <article class="card reveal">
+          <div class="card__icon" aria-hidden="true">!</div>
+          <h3 class="card__title">自动上下文</h3>
+          <p class="card__body">自动捕获调用方的文件路径与行号，配合 LRU 缓存调用点信息。</p>
+          <pre class="card__code"><code>logger.error(<span class="tok-var">new</span> Error(<span class="tok-str">'DB failed'</span>))
+<span class="tok-comment">// 输出 JSON 时 Error → {message, name, stack}</span></code></pre>
+        </article>
+      </div>
+    </section>
+
+    <!-- ── 特性 ───────────────────────────────────────────── -->
+    <section class="honest section" id="features">
+      <div class="section__head">
+        <p class="eyebrow">特性一览</p>
+        <h2 class="section__title">该有的都有，不该有的一个不多。</h2>
+        <p class="section__sub">标准级别、事件钩子、子 logger、格式化——每一处都有明确用途。</p>
+      </div>
+      <div class="table-wrap reveal">
+        <table>
+          <thead>
+            <tr><th>能力</th><th>说明</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>标准日志级别</code></td><td><code>debug</code> / <code>info</code> / <code>warn</code> / <code>error</code> / <code>silent</code></td></tr>
+            <tr><td><code>自动上下文</code></td><td>调用文件路径 + 行号（LRU 缓存）</td></tr>
+            <tr><td><code>文件管理</code></td><td>大小轮转、时间/数量清理、gzip 压缩</td></tr>
+            <tr><td><code>异步队列</code></td><td>批量写入，<code>drop</code> / <code>block</code> 策略</td></tr>
+            <tr><td><code>格式化</code></td><td>纯文本 / JSON / 自定义 <code>formatter</code></td></tr>
+            <tr><td><code>事件钩子</code></td><td><code>levelChange</code>、<code>fileWriteError</code> 监听</td></tr>
+            <tr><td><code>子 logger</code></td><td><code>logger.child('module')</code> 继承配置并限定命名空间</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── 用法演示 ───────────────────────────────────────── -->
+    <section class="demo section" id="demo">
+      <div class="section__head">
+        <p class="eyebrow">用法</p>
+        <h2 class="section__title">从默认实例到完整配置。</h2>
+        <p class="section__sub">直接使用默认 <code>logger</code>，或用 <code>new Logger()</code> 精细控制。</p>
+      </div>
+
+      <div class="demo__tabs" role="tablist" aria-label="用法示例">
+        <button class="demo__tab is-active" role="tab" aria-selected="true" aria-controls="tab-basic" data-tab="basic">快速开始</button>
+        <button class="demo__tab" role="tab" aria-selected="false" aria-controls="tab-config" data-tab="config">完整配置</button>
+        <button class="demo__tab" role="tab" aria-selected="false" aria-controls="tab-lifecycle" data-tab="lifecycle">生命周期</button>
+      </div>
+
+      <div class="demo__panel is-active" id="tab-basic" role="tabpanel" data-panel="basic">
+        <pre class="demo__code"><code><span class="tok-var">import</span> { logger } <span class="tok-var">from</span> <span class="tok-str">'@chaeco/logger'</span>;
+
+<span class="tok-comment">// 目录在首次写入时自动创建</span>
+logger.info(<span class="tok-str">'Application started'</span>);
+logger.warn(<span class="tok-str">'Warning detected'</span>, { code: <span class="tok-num">4001</span> });
+logger.error(<span class="tok-var">new</span> Error(<span class="tok-str">'Database connection failed'</span>));
+
+logger.setLevel(<span class="tok-str">'silent'</span>);  <span class="tok-comment">// 一键静默</span></code></pre>
+      </div>
+
+      <div class="demo__panel" id="tab-config" role="tabpanel" data-panel="config">
+        <pre class="demo__code"><code><span class="tok-var">import</span> { Logger } <span class="tok-var">from</span> <span class="tok-str">'@chaeco/logger'</span>;
+
+<span class="tok-var">const</span> logger = <span class="tok-var">new</span> Logger({
+  level: <span class="tok-str">'info'</span>,
+  name: <span class="tok-str">'api-service'</span>,
+  file: {
+    path: <span class="tok-str">'./logs'</span>, maxSize: <span class="tok-num">10</span> * <span class="tok-num">1024</span> * <span class="tok-num">1024</span>,
+    maxFiles: <span class="tok-num">30</span>, maxAge: <span class="tok-num">30</span>, compress: <span class="tok-kw">true</span>,
+  },
+  console: { enabled: <span class="tok-kw">true</span>, colors: <span class="tok-kw">true</span>, timestamp: <span class="tok-kw">true</span> },
+  async: { enabled: <span class="tok-kw">true</span>, queueSize: <span class="tok-num">5000</span>,
+           batchSize: <span class="tok-num">200</span>, flushInterval: <span class="tok-num">500</span>,
+           overflowStrategy: <span class="tok-str">'block'</span> },
+  format: { json: <span class="tok-kw">true</span>, jsonIndent: <span class="tok-num">2</span> },
+});</code></pre>
+      </div>
+
+      <div class="demo__panel" id="tab-lifecycle" role="tabpanel" data-panel="lifecycle">
+        <pre class="demo__code"><code><span class="tok-comment">// 优雅关闭：flush 队列 + 关闭句柄（必须 await）</span>
+process.on(<span class="tok-str">'SIGTERM'</span>, <span class="tok-var">async</span> () =&gt; {
+  <span class="tok-var">await</span> logger.close();
+  process.exit(<span class="tok-num">0</span>);
+});
+
+<span class="tok-comment">// 事件钩子</span>
+logger.on(<span class="tok-str">'levelChange'</span>, (e) =&gt; {
+  console.log(<span class="tok-str">`Level: ${e.data.oldLevel} → ${e.data.newLevel}`</span>);
+});
+
+<span class="tok-comment">// 子 logger</span>
+<span class="tok-var">const</span> dbLogger = logger.child(<span class="tok-str">'db'</span>);
+dbLogger.info(<span class="tok-str">'Connected'</span>);  <span class="tok-comment">// [api-service:db]</span></code></pre>
+      </div>
+    </section>
+
+    <!-- ── 异步队列参考 ───────────────────────────────────── -->
+    <section class="honest section" id="queue">
+      <div class="section__head">
+        <p class="eyebrow">异步队列配置</p>
+        <h2 class="section__title">按 QPS 选择参数。</h2>
+        <p class="section__sub">不同并发级别有对应的推荐配置，审计/支付类业务务必用 <code>block</code>。</p>
+      </div>
+      <div class="table-wrap reveal">
+        <table>
+          <thead>
+            <tr><th>并发级别</th><th>QPS</th><th>queueSize</th><th>batchSize</th><th>策略</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>低</td><td>&lt; 1k</td><td>1000-2000</td><td>50-100</td><td><code>drop</code></td></tr>
+            <tr><td>中高</td><td>1k-10k</td><td>5000</td><td>200</td><td><code>block</code></td></tr>
+            <tr><td>高</td><td>&gt; 10k</td><td>8000-10000</td><td>300-500</td><td><code>block</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── 安装 / CTA ─────────────────────────────────────── -->
+    <section class="cta section" id="install">
+      <div class="cta__box">
+        <p class="eyebrow">开始使用</p>
+        <h2 class="cta__title">生产日志，开箱即用。</h2>
+        <pre class="cta__cmd"><code>$ npm install @chaeco/logger</code><span class="cta__cursor" aria-hidden="true"></span></pre>
+        <p class="cta__note">Node.js ≥ 16 · 全 TypeScript · MIT</p>
+        <div class="cta__actions">
+          <a class="btn btn--solid" href="https://github.com/chaeco/logger" target="_blank" rel="noopener">GitHub →</a>
+          <a class="btn btn--ghost" href="https://github.com/chaeco/logger#readme" target="_blank" rel="noopener">阅读文档</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="footer__inner">
+      <span class="brand"><span class="brand__mark" aria-hidden="true">%</span> logger</span>
+      <p>不丢一行 · 轮转压缩 · 异步批量</p>
+      <p class="footer__meta">MIT License · @chaeco/logger</p>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

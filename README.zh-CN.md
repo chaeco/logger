@@ -29,7 +29,7 @@
 ## 安装
 
 ```bash
-npm install github:chaeco/logger
+npm install @chaeco/logger
 ```
 
 ## 快速开始

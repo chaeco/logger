@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v1.0.3] - 2026-08-14
+
+### Fixed
+
+- **`updateConfig` FileManager 关闭失败不再静默** — 重建或禁用文件输出时，旧 `FileManager.close()` 失败（如异步队列仍有残留数据）现在会输出 `console.warn` 提示，而不是静默吞掉可能的数据丢失。
+
+### Changed
+
+- **Install docs** — READMEs (EN/ZH) 改为 `npm install @chaeco/logger`（包已发布到 npm），移除原先的 GitHub 安装指令。
+- **package-lock version sync** — lockfile 自引用版本已同步（此前停留在 1.0.0）。
+
+### Added
+
+- **Project website** — `website/` 落地页（统一 Chaeco 深色终端风格），含活终端演示、异步队列 QPS 参考表与安装 CTA。
+- **GitHub Pages workflow** — `.github/workflows/pages.yml` 将 `website/` 部署到 GitHub Pages。
+
 ## [v1.0.2] - 2026-08-01
 
 ### Fixed
