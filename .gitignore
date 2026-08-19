@@ -13,3 +13,7 @@ logs/
 
 # 通过 Git 安装时需要 dist/，不要忽略
 # dist/
+
+# Local AI assistant files (not published)
+AGENTS.md
+.agents/
