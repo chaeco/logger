@@ -85,6 +85,7 @@ describe('NodeWriter — init()', () => {
   })
 
   it('目录不可写时 initError 不为 undefined', () => {
+    if (process.platform === 'win32') return // POSIX permission model doesn't apply on Windows
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
     const w = new NodeWriter(makeOptions({ path: '/root/no-perm-xyz-nw' }))
     w.init()
@@ -458,6 +459,7 @@ describe('NodeWriter — 排序与写入失败', () => {
   })
 
   it('appendToFileWithRetry 多次失败后抛错', async () => {
+    if (process.platform === 'win32') return // POSIX permission model doesn't apply on Windows
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
     const w = new NodeWriter(
       makeOptions({ filename: 'fail', retryCount: 0, path: '/root/no-perm-xyz-nw' })
@@ -530,9 +532,9 @@ describe('NodeWriter — 排序与写入失败', () => {
     const w = new NodeWriter(makeOptions({ filename: 'idx', path: '/logs' }))
     ;(w as any).fileIndex = 0
     const p0 = (w as any).getIndexedFilePath()
-    expect(p0).toMatch(/\/logs\/idx-\d{4}-\d{2}-\d{2}\.log$/)
+    expect(p0).toMatch(/[/\\]logs[/\\]idx-\d{4}-\d{2}-\d{2}\.log$/)
     ;(w as any).fileIndex = 1
     const p1 = (w as any).getIndexedFilePath()
-    expect(p1).toMatch(/\/logs\/idx-\d{4}-\d{2}-\d{2}\.1\.log$/)
+    expect(p1).toMatch(/[/\\]logs[/\\]idx-\d{4}-\d{2}-\d{2}\.1\.log$/)
   })
 })
