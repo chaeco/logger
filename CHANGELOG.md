@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.5] - 2026-08-24
+
+### Removed
+
+- **Husky & lint-staged** — removed `husky` and `lint-staged` devDependencies, `.husky/` directory, `prepare`/`precommit` scripts, and `lint-staged` config. Reset `core.hooksPath` git configuration.
+
+### Fixed
+
+- **Windows CI** — `node-writer.test.ts`: skipped permission-dependent tests that rely on POSIX chmod model (not applicable on Windows); fixed `getIndexedFilePath` regex to accept both forward and backslash (`/` and `\`) path separators.
+
 ## [1.0.4] - 2026-08-19
 
 ### Changed
